@@ -1,0 +1,1 @@
+Build an internal RAG assistant that answers employee questions from company policy documents (PDF and DOCX) with source citations.

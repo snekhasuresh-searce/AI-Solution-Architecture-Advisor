@@ -1,0 +1,20 @@
+{
+  "_comment": "Approved technology catalogue for the POC. Specialists may only recommend these; anything else is flagged by the Reviewer. Extend freely.",
+  "categories": {
+    "frontend_framework": ["React", "Next.js", "Vue", "Nuxt", "Angular", "SvelteKit", "Astro"],
+    "styling_ui": ["Tailwind CSS", "CSS Modules", "Material UI", "shadcn/ui", "Radix UI"],
+    "state_data_fetching": ["Redux Toolkit", "Zustand", "TanStack Query"],
+    "mobile": ["React Native", "Flutter", "Kotlin", "Swift"],
+    "backend_runtime": ["Node.js", "Express", "NestJS", "Python", "FastAPI", "Django", "Java", "Spring Boot", "Go"],
+    "api_style": ["REST", "GraphQL", "gRPC", "OpenAPI"],
+    "database": ["PostgreSQL", "MySQL", "MongoDB", "Redis", "Firestore", "Cloud SQL", "AlloyDB", "Spanner", "BigQuery", "Memorystore"],
+    "auth": ["Auth0", "Firebase Authentication", "Identity Platform", "Keycloak", "OAuth 2.0", "OpenID Connect", "JWT"],
+    "gcp_compute_network": ["Cloud Run", "GKE", "Compute Engine", "App Engine", "Cloud Functions", "Cloud Load Balancing", "Cloud CDN", "Cloud Armor", "Cloud DNS", "VPC"],
+    "gcp_data_messaging": ["Cloud Storage", "Pub/Sub", "Dataflow", "Cloud Composer", "Dataproc"],
+    "gcp_ops_security": ["Cloud Monitoring", "Cloud Logging", "Secret Manager", "Cloud KMS", "IAM", "Artifact Registry", "Cloud Build"],
+    "ai_ml": ["Gemini", "Vertex AI", "Vertex AI Search", "Vertex AI Vector Search", "pgvector", "Document AI", "ADK", "LangChain", "LangGraph"],
+    "hosting_static": ["Firebase Hosting", "Vercel", "Netlify"],
+    "devops": ["GitHub Actions", "Docker", "Terraform", "Kubernetes"],
+    "testing_quality": ["Playwright", "Jest", "Vitest", "Lighthouse", "axe-core", "k6", "OWASP ZAP", "pytest"]
+  }
+}

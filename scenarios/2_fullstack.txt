@@ -1,0 +1,1 @@
+Build a SaaS application with React, Node.js, PostgreSQL and authentication for small businesses to manage their invoices.

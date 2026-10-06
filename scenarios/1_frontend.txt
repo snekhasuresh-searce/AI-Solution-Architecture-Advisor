@@ -1,0 +1,1 @@
+I need a responsive company website with Home, About, Services and Contact pages. It should work on mobile and desktop. I only need the frontend, no backend.

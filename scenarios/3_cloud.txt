@@ -1,0 +1,1 @@
+Design a highly available GCP architecture for a web application serving 100,000 users, with disaster recovery.

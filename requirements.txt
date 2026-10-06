@@ -1,0 +1,12 @@
+# Core
+google-adk[extensions]>=2.0   # ADK + LiteLLM support (needed for Ollama)
+pydantic>=2.6
+python-dotenv>=1.0
+
+# Document intake (CLI)
+pypdf>=4.0
+python-docx>=1.1
+
+# Dev
+pytest>=8.0
+pytest-asyncio>=0.23
