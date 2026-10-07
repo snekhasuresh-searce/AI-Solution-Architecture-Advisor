@@ -1,4 +1,4 @@
-"""Print the most recent runs from the SQLite log."""
+"""Print the most recent runs from the run log (Postgres or SQLite)."""
 
 import sys
 from pathlib import Path

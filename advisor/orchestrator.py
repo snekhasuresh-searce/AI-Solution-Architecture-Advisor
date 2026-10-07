@@ -28,6 +28,7 @@ from google.genai import types
 from . import report, storage
 from .catalogue import unknown_choices
 from .config import settings
+from .consistency import find_conflicts
 from .scoring import combined_weights, evaluate
 from .selector import SPECIALISTS, select_agents
 
@@ -213,6 +214,10 @@ class AdvisorOrchestrator(BaseAgent):
                 + ", ".join(unknown)
                 if unknown else "All technology choices are in the approved catalogue."
             )
+            conflicts = find_conflicts(outputs)
+            if conflicts:
+                auto_checks += "\nConflicting choices across agents (already raised as high findings): " + \
+                    "; ".join(c["description"] for c in conflicts)
             yield self._set_state(ctx, {"review_context": {
                 "agents": selected,
                 "dimensions": list(weights),
@@ -223,7 +228,8 @@ class AdvisorOrchestrator(BaseAgent):
             async for event in self.reviewer.run_async(ctx):
                 yield self._quiet(event)
             review = _as_dict(ctx.session.state.get("review"))
-            findings = review.get("findings", [])
+            # Deterministic conflicts are added here so approval never depends on the model spotting them.
+            findings = review.get("findings", []) + conflicts
             scores = {s["dimension"]: int(s["score"]) for s in review.get("scores", []) if "dimension" in s}
             result = evaluate(domains, scores, [f.get("severity", "low") for f in findings])
             approved = review.get("decision") == "APPROVED" and result.approved
@@ -302,4 +308,5 @@ class AdvisorOrchestrator(BaseAgent):
             rounds=len(history),
             payload={"brief": brief, "outputs": outputs, "history": history},
         )
-        yield self._say(ctx, markdown + f"\n\n---\n_Saved to `{path}` (run `{run_id}`)._")
+        yield self._say(ctx, markdown + f"\n\n---\n_Saved to `{path}` (run `{run_id}`)._",
+                        state={"last_run": {"run_id": run_id, "status": status}})

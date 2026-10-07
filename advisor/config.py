@@ -28,6 +28,12 @@ class Settings:
     gemini_strong: str = os.getenv("GEMINI_STRONG_MODEL", "gemini-3.8-flash")
     gemini_fast: str = os.getenv("GEMINI_FAST_MODEL", "gemini-3.5-flash-lite")
 
+    # Claude via the Anthropic API (ANTHROPIC_API_KEY). Effort: low | medium | high | xhigh | max.
+    claude_strong: str = os.getenv("CLAUDE_STRONG_MODEL", "claude-opus-5-5")
+    claude_fast: str = os.getenv("CLAUDE_FAST_MODEL", "claude-opus-5-5")
+    claude_strong_effort: str = os.getenv("CLAUDE_STRONG_EFFORT", "high").strip().lower()
+    claude_fast_effort: str = os.getenv("CLAUDE_FAST_EFFORT", "medium").strip().lower()
+
     ollama_strong: str = os.getenv("OLLAMA_STRONG_MODEL", "ollama_chat/qwen2.5:14b")
     ollama_fast: str = os.getenv("OLLAMA_FAST_MODEL", "ollama_chat/qwen2.5:7b")
 
@@ -38,6 +44,9 @@ class Settings:
 
     show_agent_outputs: bool = os.getenv("ADVISOR_SHOW_AGENT_OUTPUTS", "false").strip().lower() == "true"
 
+    # Postgres run log, e.g. postgresql://user:pass@localhost:5432/solution_advisor.
+    # Empty = local SQLite file at db_path.
+    database_url: str = os.getenv("ADVISOR_DATABASE_URL", "").strip()
     db_path: str = os.getenv("ADVISOR_DB_PATH", "outputs/runs.sqlite")
     output_dir: str = os.getenv("ADVISOR_OUTPUT_DIR", "outputs")
 

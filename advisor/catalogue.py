@@ -30,14 +30,16 @@ def _norm(text: str) -> str:
     return re.sub(r"[^a-z0-9+/#.]+", " ", text.lower()).strip()
 
 
-def is_known(choice: str) -> bool:
-    """True if the choice names at least one catalogue technology.
-
-    Matching is on whole words, so 'React with Next.js' is known,
-    while 'Reactor' is not.
-    """
+def technologies_in(choice: str) -> list[str]:
+    """Catalogue technologies named in a choice, matched on whole words,
+    so 'React with Next.js' -> ['Next.js', 'React'] and 'Reactor' -> []."""
     text = f" {_norm(choice)} "
-    return any(f" {_norm(t)} " in text for t in all_technologies())
+    return [t for t in all_technologies() if f" {_norm(t)} " in text]
+
+
+def is_known(choice: str) -> bool:
+    """True if the choice names at least one catalogue technology."""
+    return bool(technologies_in(choice))
 
 
 def unknown_choices(choices: list[str]) -> list[str]:

@@ -2,16 +2,53 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from pathlib import Path
 
+from .catalogue import load_catalogue, technologies_in
 from .config import settings
+from .consistency import find_conflicts
 
 SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
 def _bullets(items) -> str:
+    items = list(items)
     return "\n".join(f"- {i}" for i in items) if items else "- None stated"
+
+
+def _merge_components(outputs: dict[str, dict]) -> list[dict]:
+    """One row per component name; the first agent's description is kept."""
+    merged: dict[str, dict] = {}
+    for agent, out in outputs.items():
+        for c in out.get("components", []):
+            key = " ".join(c.get("name", "").lower().split())
+            row = merged.setdefault(key, {"name": c.get("name", ""), "responsibility": c.get("responsibility", ""),
+                                          "agents": []})
+            if agent not in row["agents"]:
+                row["agents"].append(agent)
+    return list(merged.values())
+
+
+def _merge_choices(outputs: dict[str, dict]) -> list[dict]:
+    """One row per (category, technology), in catalogue order; alternatives are unioned."""
+    merged: dict[tuple, dict] = {}
+    for agent, out in outputs.items():
+        for t in out.get("technology_choices", []):
+            choice = t.get("choice", "")
+            key = (t.get("category", ""), tuple(technologies_in(choice)) or choice.strip().lower())
+            row = merged.setdefault(key, {"category": key[0], "choice": choice, "rationale": t.get("rationale", ""),
+                                          "alternatives": [], "agents": []})
+            row["alternatives"] += [a for a in t.get("alternatives", []) if a not in row["alternatives"]]
+            if agent not in row["agents"]:
+                row["agents"].append(agent)
+    order = {c: i for i, c in enumerate(load_catalogue())}
+    rows = sorted(merged.values(), key=lambda r: order.get(r["category"], len(order)))
+    for r in rows:  # an alternative that another row already chose is not an alternative
+        chosen = {x["choice"] for x in rows if x["category"] == r["category"]}
+        r["alternatives"] = [a for a in r["alternatives"] if a not in chosen]
+    return rows
 
 
 def build_markdown(*, run_id, status, brief, domains, plan_text, outputs, review, score, history, unknown_tech) -> str:
@@ -29,15 +66,16 @@ def build_markdown(*, run_id, status, brief, domains, plan_text, outputs, review
     # 2. Solution design
     lines += ["## 2. Solution design", "", "### Agents used", "", plan_text, ""]
     lines += ["### Components", "", "| Component | Responsibility | From |", "| --- | --- | --- |"]
-    for agent, out in outputs.items():
-        for c in out.get("components", []):
-            lines.append(f"| {c.get('name','')} | {c.get('responsibility','')} | {agent} |")
+    for c in _merge_components(outputs):
+        lines.append(f"| {c['name']} | {c['responsibility']} | {', '.join(c['agents'])} |")
     lines += ["", "### Technology choices", "", "| Category | Choice | Rationale | Alternatives | From |",
               "| --- | --- | --- | --- | --- |"]
-    for agent, out in outputs.items():
-        for t in out.get("technology_choices", []):
-            lines.append(f"| {t.get('category','')} | {t.get('choice','')} | {t.get('rationale','')} | "
-                         f"{', '.join(t.get('alternatives', []))} | {agent} |")
+    for t in _merge_choices(outputs):
+        lines.append(f"| {t['category']} | {t['choice']} | {t['rationale']} | "
+                     f"{', '.join(t['alternatives'])} | {', '.join(t['agents'])} |")
+    conflicts = find_conflicts(outputs)
+    if conflicts:
+        lines += ["", "**Unresolved conflicts:**", "", _bullets(c["description"] for c in conflicts)]
     lines.append("")
 
     # 3. Specialist findings
@@ -83,9 +121,21 @@ def build_markdown(*, run_id, status, brief, domains, plan_text, outputs, review
     return "\n".join(lines) + "\n"
 
 
+def path_for(run_id: str) -> Path:
+    # Run ids are 8 hex chars; anything else could escape the output directory.
+    if not re.fullmatch(r"[0-9a-f]{8}", run_id):
+        raise ValueError(f"Invalid run id: {run_id!r}")
+    return Path(settings.output_dir) / f"recommendation_{run_id}.md"
+
+
 def save(run_id: str, markdown: str) -> str:
-    out = Path(settings.output_dir)
-    out.mkdir(parents=True, exist_ok=True)
-    path = out / f"recommendation_{run_id}.md"
+    path = path_for(run_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(markdown, encoding="utf-8")
     return str(path)
+
+
+def load(run_id: str) -> str | None:
+    """The saved Markdown for a run, or None if there is no report file."""
+    path = path_for(run_id)
+    return path.read_text(encoding="utf-8") if path.exists() else None

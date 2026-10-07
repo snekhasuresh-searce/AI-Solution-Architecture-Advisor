@@ -104,18 +104,18 @@ def _analyze(text: str) -> dict:
 
 # -------------------------------------------------------------- specialists
 _TECH = {
-    "frontend": [("Frontend framework", "Next.js", "SSR/SSG for fast, SEO-friendly pages", ["Astro", "Nuxt"]),
-                 ("Styling", "Tailwind CSS", "Fast responsive layouts", ["CSS Modules"])],
-    "uiux": [("Component library", "shadcn/ui", "Accessible, unstyled primitives", ["Material UI"])],
-    "backend": [("API runtime", "NestJS", "Structured TypeScript services", ["FastAPI", "Express"]),
-                ("API style", "REST", "Simple, well understood", ["GraphQL"])],
-    "database": [("Primary database", "PostgreSQL", "Relational data with strong consistency", ["MySQL"])],
-    "cloud": [("Compute", "Cloud Run", "Serverless containers, scale to zero", ["GKE"]),
-              ("Database hosting", "Cloud SQL", "Managed PostgreSQL with HA", ["AlloyDB"])],
-    "security": [("Authentication", "Identity Platform", "Managed authentication service", ["Auth0", "Keycloak"])],
-    "performance": [("Performance testing", "Lighthouse", "Core Web Vitals checks in CI", ["k6"])],
-    "aiml": [("LLM", "Gemini", "Strong reasoning, long context", ["Vertex AI"]),
-             ("Vector store", "pgvector", "Keeps vectors next to app data", ["Vertex AI Vector Search"])],
+    "frontend": [("frontend_framework", "Next.js", "SSR/SSG for fast, SEO-friendly pages", ["Astro", "Nuxt"]),
+                 ("styling_ui", "Tailwind CSS", "Fast responsive layouts", ["CSS Modules"])],
+    "uiux": [("styling_ui", "shadcn/ui", "Accessible, unstyled primitives", ["Material UI"])],
+    "backend": [("backend_runtime", "NestJS", "Structured TypeScript services", ["FastAPI", "Express"]),
+                ("api_style", "REST", "Simple, well understood", ["GraphQL"])],
+    "database": [("database", "PostgreSQL", "Relational data with strong consistency", ["MySQL"])],
+    "cloud": [("gcp_compute_network", "Cloud Run", "Serverless containers, scale to zero", ["GKE"]),
+              ("database", "Cloud SQL", "Managed PostgreSQL with HA", ["AlloyDB"])],
+    "security": [("auth", "Identity Platform", "Managed authentication service", ["Auth0", "Keycloak"])],
+    "performance": [("testing_quality", "Lighthouse", "Core Web Vitals checks in CI", ["k6"])],
+    "aiml": [("ai_ml", "Gemini", "Strong reasoning, long context", ["Vertex AI"]),
+             ("ai_ml", "pgvector", "Keeps vectors next to app data", ["Vertex AI Vector Search"])],
 }
 
 
