@@ -75,6 +75,7 @@ You are the {focus}
 
 Work only within your area. Base everything on the requirement brief below.
 Recommend technologies ONLY from the approved catalogue; name them exactly as listed.
+Set each choice's category to the catalogue category it is listed under (e.g. hosting_static).
 Give a rationale and at least one alternative for each technology choice.
 Keep it concrete and short. Return JSON only, with "agent" set to "{name}".
 

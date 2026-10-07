@@ -11,8 +11,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-Domain = Literal["frontend", "backend", "fullstack", "mobile", "cloud", "aiml", "data", "other"]
+from .catalogue import load_catalogue
+
+Domain =Literal["frontend", "backend", "fullstack", "mobile", "cloud", "aiml", "data", "other"]
 Severity = Literal["critical", "high", "medium", "low"]
+# Fixed to the catalogue's category keys so every agent uses the same names.
+Category = Literal[tuple(load_catalogue())]
 
 
 # --------------------------------------------------------------------------
@@ -58,7 +62,7 @@ class Component(BaseModel):
 
 
 class TechnologyChoice(BaseModel):
-    category: str = Field(description="e.g. Frontend framework, Database, Hosting")
+    category: Category = Field(description="The catalogue category the technology is listed under")
     choice: str = Field(description="The recommended technology, by its product name")
     rationale: str
     alternatives: list[str] = Field(default_factory=list)
