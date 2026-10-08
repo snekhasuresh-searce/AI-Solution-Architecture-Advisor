@@ -1,4 +1,4 @@
-import { agentLabel, type AgentStatus, type State } from "../state";
+import { agentLabel, isSpecialist, type AgentStatus, type State } from "../state";
 import { Icon, Spinner } from "./Icon";
 
 function StatusMark({ status }: { status: AgentStatus | undefined }) {
@@ -20,8 +20,9 @@ function Node({ name, status, note }: { name: string; status: AgentStatus | unde
 export function Pipeline({ state }: { state: State }) {
   const { agents, status, reworks, reviewRounds } = state;
   if (!agents.length) return null;
-  const specialists = agents.filter((a) => a !== "analyzer" && a !== "reviewer");
+  const specialists = agents.filter(isSpecialist);
   const hasReviewer = agents.includes("reviewer");
+  const hasEstimator = agents.includes("estimator");
 
   return (
     <section className="card pipeline" aria-label="Agent progress">
@@ -49,6 +50,12 @@ export function Pipeline({ state }: { state: State }) {
               <Node name="reviewer" status={status.reviewer}
                     note={reviewRounds ? `round ${reviewRounds}` : undefined} />
             </ul>
+          </li>
+        )}
+        {hasEstimator && (
+          <li className="stage">
+            <span className="stage-label">4 · Estimate</span>
+            <ul><Node name="estimator" status={status.estimator} /></ul>
           </li>
         )}
       </ol>
