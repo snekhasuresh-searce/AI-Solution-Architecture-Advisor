@@ -3,6 +3,7 @@
 import logging
 
 from .agents.analyzer import build_analyzer
+from .agents.architect import build_architect
 from .agents.reviewer import build_reviewer
 from .agents.specialists import build_all_specialists
 from .orchestrator import AdvisorOrchestrator
@@ -15,5 +16,6 @@ root_agent = AdvisorOrchestrator(
     name="solution_advisor",
     analyzer=build_analyzer(),
     reviewer=build_reviewer(),
+    architect=build_architect(),
     specialists=build_all_specialists(),
 )

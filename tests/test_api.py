@@ -13,13 +13,14 @@ from fastapi.testclient import TestClient  # noqa: E402
 def client(tmp_path, monkeypatch):
     from dataclasses import replace
 
-    from advisor import report, storage
+    from advisor import architecture, report, storage
     from advisor.api import app
 
     settings = replace(storage.settings, database_url="", output_dir=str(tmp_path),
                        db_path=str(tmp_path / "runs.sqlite"))
     monkeypatch.setattr(storage, "settings", settings)
     monkeypatch.setattr(report, "settings", settings)
+    monkeypatch.setattr(architecture, "settings", settings)
     return TestClient(app)
 
 
@@ -46,6 +47,16 @@ def test_run_stream_and_exports(client):
         res = client.get(f"/api/runs/{run_id}/export/{fmt}")
         assert res.status_code == 200 and res.content.startswith(magic)
         assert f"recommendation_{run_id}.{fmt}" in res.headers["content-disposition"]
+
+    # Architecture stage: progress event, report section and diagram endpoints.
+    assert {"type": "agent_done", "agent": "architect"} in events
+    assert f"/api/runs/{run_id}/diagram.svg" in report["markdown"]
+    svg = client.get(f"/api/runs/{run_id}/diagram.svg")
+    assert svg.status_code == 200 and svg.headers["content-type"].startswith("image/svg+xml")
+    png = client.get(f"/api/runs/{run_id}/diagram.png?download=true")
+    assert png.content[1:4] == b"PNG" and "attachment" in png.headers["content-disposition"]
+    assert client.get(f"/api/runs/{run_id}/architecture").json()["nodes"]
+    assert client.get(f"/api/runs/{run_id}/diagram.gif").status_code == 400
 
 
 def test_clarifying_questions_end_without_report(client):

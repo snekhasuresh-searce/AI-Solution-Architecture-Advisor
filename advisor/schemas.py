@@ -117,3 +117,66 @@ class ReviewOutput(BaseModel):
     summary: str
     findings: list[Finding] = Field(default_factory=list)
     scores: list[DimensionScore] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------
+# Solution Architect (high-level architecture diagram + presales narrative)
+# --------------------------------------------------------------------------
+# Logical layers of the diagram, in drawing order.
+Layer = Literal[
+    "users", "application", "api", "ai", "data", "integrations", "infrastructure", "security", "operations"
+]
+# What a box is; drives its colour/shape so client, proposed, third-party, cloud,
+# AI and data components are told apart at a glance.
+NodeKind = Literal["actor", "client_system", "proposed", "third_party", "cloud_service", "ai", "data_store"]
+
+
+class ArchNode(BaseModel):
+    id: str = Field(description="Short unique snake_case id, e.g. api_gateway")
+    label: str = Field(description="Box label, 2-4 words, e.g. 'API Gateway'")
+    layer: Layer
+    kind: NodeKind
+    technology: str = Field(default="", description="Product name, or empty if not decided")
+    status: Literal["required", "recommended"] = Field(
+        default="required",
+        description="required = needed to meet a stated requirement; recommended = architect's proposal",
+    )
+    purpose: str = Field(description="One sentence: what it does and why it is needed (for AI: why AI)")
+
+
+class FlowStep(BaseModel):
+    source: str = Field(description="Node id")
+    target: str = Field(description="Node id")
+    label: str = Field(description="2-5 words, e.g. 'HTTPS request'")
+
+
+class ArchFlow(BaseModel):
+    name: str
+    kind: Literal["request", "ai"]
+    steps: list[FlowStep] = Field(default_factory=list)
+
+
+class RequirementMapping(BaseModel):
+    requirement: str = Field(description="A requirement from the brief, verbatim")
+    components: list[str] = Field(default_factory=list, description="Node ids that deliver it")
+
+
+class StackItem(BaseModel):
+    layer: Layer
+    technology: str
+    purpose: str
+    status: Literal["required", "recommended"] = "recommended"
+
+
+class ArchitectureOutput(BaseModel):
+    title: str
+    overview: str = Field(description="Two or three sentences for non-technical stakeholders")
+    cloud_provider: str = Field(description="Named provider, or 'To be confirmed' if hosting is out of scope")
+    nodes: list[ArchNode]
+    flows: list[ArchFlow] = Field(default_factory=list)
+    requirement_mapping: list[RequirementMapping] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    technology_stack: list[StackItem] = Field(default_factory=list)
+    security_considerations: list[str] = Field(default_factory=list)
+    scalability_considerations: list[str] = Field(default_factory=list)
+    future_enhancements: list[str] = Field(default_factory=list)

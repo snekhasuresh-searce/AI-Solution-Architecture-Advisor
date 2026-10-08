@@ -49,6 +49,7 @@ export function ReportView({ report }: { report: Report }) {
   };
 
   const approved = report.status === "APPROVED";
+  const hasDiagram = report.markdown.includes(api.diagramUrl(report.runId, "svg"));
   return (
     <section className="card report" aria-label="Recommendation">
       <header className="report-bar">
@@ -64,6 +65,11 @@ export function ReportView({ report }: { report: Report }) {
           <button type="button" className="btn" onClick={() => exportAs("pdf")} disabled={exporting !== null}>
             {exporting === "pdf" ? <Spinner /> : <Icon name="download" />} Export to PDF
           </button>
+          {hasDiagram && (
+            <a className="btn" href={api.diagramUrl(report.runId, "png", true)} download>
+              <Icon name="download" /> Diagram PNG
+            </a>
+          )}
           <button type="button" className="btn ghost" onClick={copy} title="Copy the report as Markdown">
             <Icon name={copied ? "check" : "copy"} /> {copied ? "Copied" : "Markdown"}
           </button>
@@ -73,7 +79,15 @@ export function ReportView({ report }: { report: Report }) {
       <article className="markdown">
         <Markdown
           remarkPlugins={[remarkGfm]}
-          components={{ table: (props) => <div className="table-wrap"><table {...props} /></div> }}
+          components={{
+            table: (props) => <div className="table-wrap"><table {...props} /></div>,
+            // The architecture diagram: full width, click to open at full size.
+            img: ({ src, alt }) => (
+              <a className="diagram" href={String(src)} target="_blank" rel="noreferrer" title="Open full size">
+                <img src={String(src)} alt={alt ?? ""} loading="lazy" />
+              </a>
+            ),
+          }}
         >
           {report.markdown}
         </Markdown>
