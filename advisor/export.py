@@ -4,8 +4,7 @@ The report uses a small, fixed Markdown subset - headings, paragraphs, bullets,
 pipe tables, block quotes, rules and **bold** / *italic* / `code` - so it is
 parsed here directly instead of pulling in a full Markdown engine. An image
 line (`![alt](src)`) marks where the architecture diagram goes; it is drawn
-from the run's architecture JSON (vector in PDF, PNG in DOCX) on its own
-landscape page.
+from the run's architecture JSON (vector in PDF, PNG in DOCX) at full page width.
 """
 
 from __future__ import annotations
@@ -19,6 +18,10 @@ from pathlib import Path
 
 # ------------------------------------------------------------------ branding
 LOGO = Path(__file__).parent / "assets" / "searce_logo.png"
+# Google Sans is not freely redistributable: Word uses it when installed on the reader's machine, and the
+# PDF embeds it when the TTFs are in advisor/assets/fonts (or installed); otherwise a fallback font is used.
+FONT = "Google Sans"
+FONT_DIR = Path(__file__).parent / "assets" / "fonts"
 NAVY, ACCENT, BAND, RULE = "1F2A44", "1F5FBF", "F3F6FB", "D0D7DE"
 
 
@@ -130,7 +133,6 @@ def title_of(markdown: str) -> str:
 # -------------------------------------------------------------------- DOCX
 def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
     from docx import Document
-    from docx.enum.section import WD_ORIENT, WD_SECTION
     from docx.enum.table import WD_TABLE_ALIGNMENT
     from docx.shared import Inches, Pt, RGBColor
 
@@ -144,15 +146,20 @@ def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
         section.top_margin, section.bottom_margin = Inches(0.9), Inches(0.8)
         section.header_distance = section.footer_distance = Inches(0.35)
     styles = doc.styles
-    styles["Normal"].font.name = "Calibri"
+    styles["Normal"].font.name = FONT
     styles["Normal"].font.size = Pt(10.5)
     styles["Normal"].paragraph_format.space_after = Pt(6)
     styles["Normal"].paragraph_format.line_spacing = 1.1
-    for name, size, color, before in (("Title", 24, NAVY, 0), ("Heading 1", 16, ACCENT, 16),
-                                      ("Heading 2", 13, ACCENT, 12), ("Heading 3", 11.5, NAVY, 10),
-                                      ("Heading 4", 10.5, NAVY, 8)):
+    # Outline: Markdown # -> Title, ## -> Heading 1 (numbered sections), ### -> Heading 2, #### -> Heading 3.
+    for name, size, color, before in (("Title", 24, NAVY, 0), ("Heading 1", 16, ACCENT, 18),
+                                      ("Heading 2", 12.5, NAVY, 12), ("Heading 3", 11, NAVY, 8),
+                                      ("List Bullet", None, None, 0)):
+        if name == "List Bullet":
+            styles[name].font.name = FONT
+            styles[name].paragraph_format.space_after = Pt(3)
+            continue
         st = styles[name]
-        st.font.name, st.font.size, st.font.bold = "Calibri", Pt(size), True
+        st.font.name, st.font.size, st.font.bold = FONT, Pt(size), True
         st.font.color.rgb = RGBColor.from_string(color)
         st.paragraph_format.space_before, st.paragraph_format.space_after = Pt(before), Pt(6)
         st.paragraph_format.keep_with_next = True
@@ -254,10 +261,10 @@ def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
 
     for block in parse(markdown):
         if block.kind == "heading":
-            heading = doc.add_heading(level=min(block.level, 4) if block.level > 1 else 0)
+            heading = doc.add_heading(level=min(block.level - 1, 3))  # level 0 = Title
             add_runs(heading, block.text)
-            if block.level == 1:
-                border(heading, "bottom", ACCENT)
+            if block.level <= 2:
+                border(heading, "bottom", ACCENT if block.level == 1 else RULE)
         elif block.kind == "para":
             add_runs(doc.add_paragraph(), block.text)
         elif block.kind == "bullets":
@@ -271,17 +278,11 @@ def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
                 continue
             from .diagram import to_png
 
-            # The diagram gets its own landscape section, then portrait resumes.
-            portrait = doc.sections[-1]
-            land = doc.add_section(WD_SECTION.NEW_PAGE)
-            land.orientation = WD_ORIENT.LANDSCAPE
-            land.page_width, land.page_height = portrait.page_height, portrait.page_width
+            sec = doc.sections[-1]
+            usable = sec.page_width - sec.left_margin - sec.right_margin
             add_runs(doc.add_paragraph(), block.text, bold=True)
-            usable = land.page_width - land.left_margin - land.right_margin
+            doc.paragraphs[-1].paragraph_format.keep_with_next = True
             doc.add_picture(io.BytesIO(to_png(architecture)), width=usable)
-            back = doc.add_section(WD_SECTION.NEW_PAGE)
-            back.orientation = WD_ORIENT.PORTRAIT
-            back.page_width, back.page_height = portrait.page_width, portrait.page_height
         elif block.kind == "rule":
             p = doc.add_paragraph()
             p.add_run("_" * 60).font.color.rgb = RGBColor(0xBB, 0xBB, 0xBB)
@@ -292,7 +293,8 @@ def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
             sec = doc.sections[-1]
             usable = sec.page_width - sec.left_margin - sec.right_margin
             style_table(table, usable)
-            lengths = [max(min(len(r[c]) if c < len(r) else 0, 80) for r in block.rows) + 6 for c in range(width)]
+            # Same sizing as the PDF: share by text length, never narrower than the longest word.
+            widths = _col_widths(block.rows, usable / 12700, char_w=5.6)
             for r, row in enumerate(block.rows):
                 tr = table.add_row()
                 trpr = tr._tr.get_or_add_trPr()
@@ -301,7 +303,7 @@ def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
                     trpr.append(OxmlElement("w:tblHeader"))  # repeat header on each page
                 for c in range(width):
                     cell = tr.cells[c]
-                    cell.width = int(usable * lengths[c] / sum(lengths))
+                    cell.width = int(widths[c] * 12700)
                     para = cell.paragraphs[0]
                     para.paragraph_format.space_after = Pt(0)
                     add_runs(para, row[c] if c < len(row) else "", size=Pt(9), bold=r == 0)
@@ -322,6 +324,11 @@ def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
 # --------------------------------------------------------------------- PDF
 # Fonts with wide Unicode coverage (arrows, dashes, accents); first found wins.
 _FONT_CANDIDATES = [
+    (str(FONT_DIR / "GoogleSans-Regular.ttf"), str(FONT_DIR / "GoogleSans-Bold.ttf")),
+    (str(Path.home() / "Library/Fonts/GoogleSans-Regular.ttf"), str(Path.home() / "Library/Fonts/GoogleSans-Bold.ttf")),
+    ("/Library/Fonts/GoogleSans-Regular.ttf", "/Library/Fonts/GoogleSans-Bold.ttf"),
+    ("/usr/share/fonts/truetype/google-sans/GoogleSans-Regular.ttf",
+     "/usr/share/fonts/truetype/google-sans/GoogleSans-Bold.ttf"),
     ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
     ("/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
     ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),
@@ -398,11 +405,11 @@ def _col_widths(rows: list[list[str]], total: float, char_w: float = 5.0) -> lis
 def to_pdf(markdown: str, architecture: dict | None = None) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_LEFT
-    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.platypus import (BaseDocTemplate, Frame, HRFlowable, ListFlowable, ListItem, NextPageTemplate,
-                                    PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
+    from reportlab.platypus import (BaseDocTemplate, Frame, HRFlowable, KeepTogether, ListFlowable, ListItem,
+                                    PageTemplate, Paragraph, Spacer, Table, TableStyle)
 
     regular, bold, uni = _fonts()
     ink, muted, accent, line = (colors.HexColor(c) for c in ("#1f2328", "#59636e", "#1f5fbf", "#d0d7de"))
@@ -450,12 +457,9 @@ def to_pdf(markdown: str, architecture: dict | None = None) -> bytes:
     buf = io.BytesIO()
     doc = BaseDocTemplate(buf, pagesize=A4, leftMargin=margin, rightMargin=margin, topMargin=top,
                           bottomMargin=bottom, title=title, author="Searce")
-    land = landscape(A4)
     doc.addPageTemplates([
         PageTemplate("portrait", [Frame(margin, bottom, A4[0] - 2 * margin, A4[1] - top - bottom, id="p")],
                      onPage=footer, pagesize=A4),
-        PageTemplate("landscape", [Frame(margin, bottom, land[0] - 2 * margin, land[1] - top - bottom, id="l")],
-                     onPage=footer, pagesize=land),
     ])
     story = []
     for block in parse(markdown):
@@ -471,11 +475,9 @@ def to_pdf(markdown: str, architecture: dict | None = None) -> bytes:
                 continue
             from .diagram import to_drawing
 
-            box_w, box_h = land[0] - 2 * margin - 12, land[1] - top - bottom - 40
-            story += [NextPageTemplate("landscape"), PageBreak(),
-                      Paragraph(_markup(block.text, uni), styles[3]),
-                      to_drawing(architecture, box_w, box_h),
-                      NextPageTemplate("portrait"), PageBreak()]
+            box_w, box_h = doc.width, A4[1] - top - bottom - 40
+            story.append(KeepTogether([Paragraph(_markup(block.text, uni), styles[3]),
+                                       to_drawing(architecture, box_w, box_h)]))
         elif block.kind == "rule":
             story.append(HRFlowable(width="100%", color=line, spaceBefore=6, spaceAfter=6))
         elif block.kind == "bullets":
