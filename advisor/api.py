@@ -3,6 +3,7 @@
 Run:  uvicorn advisor.api:app --port 8080 --reload
 The web app streams progress from POST /api/sessions/{id}/messages as NDJSON
 (one JSON object per line) and downloads exports from /api/runs/{id}/export/{fmt}.
+The architecture diagram is served at /api/runs/{id}/diagram.svg and .png.
 If web/dist exists (npm run build), it is served at / as well.
 """
 
@@ -21,7 +22,7 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 from pydantic import BaseModel, Field
 
-from . import report, storage
+from . import architecture, diagram, report, storage
 from .agent import root_agent
 from .config import settings
 from .export import EXPORTERS, title_of
@@ -46,7 +47,7 @@ def _agent_key(author: str) -> str | None:
     """ADK event author -> the name the web app uses for that agent."""
     if author == "requirement_analyzer":
         return "analyzer"
-    if author in ("reviewer", "estimator"):
+    if author in ("reviewer", "estimator", "architect"):
         return author
     if author.endswith("_agent"):
         return author.removesuffix("_agent")
@@ -61,7 +62,7 @@ async def _events(session_id: str, text: str) -> AsyncIterator[dict]:
         delta = (event.actions.state_delta if event.actions else None) or {}
         if event.author != root_agent.name:
             agent = _agent_key(event.author)
-            if agent and (f"spec_{agent}" in delta or {"analysis", "review", "estimate"} & delta.keys()):
+            if agent and (f"spec_{agent}" in delta or {"analysis", "review", "estimate", "architecture"} & delta.keys()):
                 yield {"type": "agent_done", "agent": agent}
             continue
         if "selected_agents" in delta:
@@ -71,6 +72,8 @@ async def _events(session_id: str, text: str) -> AsyncIterator[dict]:
         rework = [k.removeprefix("rework_") for k, v in delta.items() if k.startswith("rework_") and v]
         if rework:
             yield {"type": "rework", "agents": rework}
+        if "architect_context" in delta:
+            yield {"type": "agent_start", "agent": "architect"}
         if "last_run" in delta:
             run = delta["last_run"]
             yield {"type": "report", "run_id": run["run_id"], "status": run["status"],
@@ -127,13 +130,15 @@ async def intake(file: UploadFile) -> dict:
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "File is larger than 10 MB.")
-    with tempfile.NamedTemporaryFile(suffix=suffix) as tmp:
+    # Closed before reading: Windows cannot reopen a NamedTemporaryFile that is still open.
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(data)
-        tmp.flush()
-        try:
-            text = read_requirement_file(tmp.name)
-        except Exception as exc:  # noqa: BLE001 - corrupt or unreadable document
-            raise HTTPException(400, f"Could not read {file.filename}: {exc}") from exc
+    try:
+        text = read_requirement_file(tmp.name)
+    except Exception as exc:  # noqa: BLE001 - corrupt or unreadable document
+        raise HTTPException(400, f"Could not read {file.filename}: {exc}") from exc
+    finally:
+        Path(tmp.name).unlink(missing_ok=True)
     return {"text": text.strip()}
 
 
@@ -172,10 +177,37 @@ def export(run_id: str, fmt: str) -> Response:
     if fmt not in EXPORTERS:
         raise HTTPException(400, f"Unknown format {fmt!r}; use one of {', '.join(EXPORTERS)}")
     render, media_type = EXPORTERS[fmt]
-    content = render(_report_or_404(run_id))
+    markdown = _report_or_404(run_id)
+    content = render(markdown, architecture.load(run_id))
     filename = f"recommendation_{run_id}.{fmt}"
     return Response(content, media_type=media_type,
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@app.get("/api/runs/{run_id}/architecture")
+def run_architecture(run_id: str) -> dict:
+    return _architecture_or_404(run_id)
+
+
+def _architecture_or_404(run_id: str) -> dict:
+    try:
+        arch = architecture.load(run_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if arch is None:
+        raise HTTPException(404, f"No architecture for run {run_id}")
+    return arch
+
+
+@app.get("/api/runs/{run_id}/diagram.{fmt}")
+def run_diagram(run_id: str, fmt: str, download: bool = False) -> Response:
+    if fmt not in ("svg", "png"):
+        raise HTTPException(400, "Use diagram.svg or diagram.png")
+    arch = _architecture_or_404(run_id)
+    content, media_type = ((diagram.to_svg(arch).encode(), "image/svg+xml") if fmt == "svg"
+                           else (diagram.to_png(arch), "image/png"))
+    headers = {"Content-Disposition": f'attachment; filename="architecture_{run_id}.{fmt}"'} if download else {}
+    return Response(content, media_type=media_type, headers=headers)
 
 
 # Production: serve the built web app from the same origin.

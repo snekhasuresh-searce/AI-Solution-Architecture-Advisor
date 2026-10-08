@@ -1,4 +1,5 @@
-"""Final recommendation package as Markdown (9 parts: the 8 from the requirements plus resources and estimate)."""
+"""Final recommendation package as Markdown: the 8 parts from the requirements plus resources and estimate,
+and the solution architecture when one was generated."""
 
 from __future__ import annotations
 
@@ -52,17 +53,12 @@ def _merge_choices(outputs: dict[str, dict]) -> list[dict]:
     return rows
 
 
-def _cell(text) -> str:
-    """Table-safe text: a '|' inside model output would split the cell."""
-    return str(text).replace("|", "/").replace("\n", " ")
-
-
 def _days(d: float) -> str:
     return f"{d:g}"
 
 
-def _estimate_section(estimate: dict) -> list[str]:
-    lines = ["## 3. Resources and estimate", ""]
+def _estimate_section(estimate: dict, section: int) -> list[str]:
+    lines = [f"## {section}. Resources and estimate", ""]
     summary = summarize(estimate) if estimate else None
     if not estimate or summary is None:
         return lines + ["Estimate not available: the estimator did not return a result for this run.", ""]
@@ -113,8 +109,78 @@ def _estimate_section(estimate: dict) -> list[str]:
     return lines
 
 
+def diagram_url(run_id: str) -> str:
+    return f"/api/runs/{run_id}/diagram.svg"
+
+
+def _cell(text) -> str:
+    """Table-safe text: a '|' or newline inside model output would break the row."""
+    return " ".join(str(text).split()).replace("|", "/")
+
+
+def architecture_markdown(run_id: str, arch: dict, section: int) -> list[str]:
+    """The presales architecture section: diagram, data flow, components, assumptions,
+    stack, security and scalability, plus requirement traceability."""
+    from .architecture import LAYER_TITLES, LAYERS
+
+    names = {n["id"]: n["label"] for n in arch.get("nodes", [])}
+    s = section
+    lines = [f"## {s}. Solution architecture", ""]
+    if arch.get("overview"):
+        lines += [arch["overview"], ""]
+
+    lines += [f"### {s}.1 High-level solution architecture diagram", "",
+              f"![High-level solution architecture]({diagram_url(run_id)})", "",
+              f"**Cloud:** {arch.get('cloud_provider', 'To be confirmed')}. Boxes are grouped by layer and coloured "
+              "by type (client system, proposed component, third-party, managed cloud service, AI, data store). "
+              "Dashed boxes are recommended additions that the requirement did not state.", ""]
+
+    lines += [f"### {s}.2 End-to-end data flow", ""]
+    for flow in arch.get("flows", []):
+        prefix = "A" if flow["kind"] == "ai" else ""
+        lines += [f"**{flow['name']}**" + (" (AI workflow)" if flow["kind"] == "ai" else ""), ""]
+        lines += [f"- **{prefix}{k}.** {names.get(st['source'], st['source'])} → "
+                  f"{names.get(st['target'], st['target'])}: {st['label']}" for k, st in enumerate(flow["steps"], 1)]
+        lines.append("")
+    if not arch.get("flows"):
+        lines += ["- No flow was produced.", ""]
+
+    lines += [f"### {s}.3 Major components", "", "| Layer | Component | Technology | Type | Status | Purpose |",
+              "| --- | --- | --- | --- | --- | --- |"]
+    for layer in LAYERS:
+        for n in (x for x in arch.get("nodes", []) if x["layer"] == layer):
+            lines.append(f"| {LAYER_TITLES[layer]} | {_cell(n['label'])} | {_cell(n['technology'] or '-')} | "
+                         f"{n['kind'].replace('_', ' ')} | {n['status']} | {_cell(n['purpose'])} |")
+    lines.append("")
+
+    lines += [f"### {s}.4 Requirement traceability", "", "| Requirement | Delivered by |", "| --- | --- |"]
+    for m in arch.get("requirement_mapping", []):
+        comps = ", ".join(names.get(c, c) for c in m["components"]) or "**Not mapped**"
+        lines.append(f"| {_cell(m['requirement'])} | {comps} |")
+    if arch.get("unmapped"):
+        lines += ["", f"> {len(arch['unmapped'])} requirement(s) are not yet mapped to a component; "
+                      "confirm scope with the client."]
+    lines.append("")
+
+    lines += [f"### {s}.5 Key assumptions", "", _bullets(arch.get("assumptions", [])), ""]
+
+    lines += [f"### {s}.6 Recommended technology stack", "", "| Layer | Technology | Purpose | Status |",
+              "| --- | --- | --- | --- |"]
+    order = {k: i for i, k in enumerate(LAYERS)}
+    for t in sorted(arch.get("technology_stack", []), key=lambda t: order.get(t.get("layer"), 99)):
+        lines.append(f"| {LAYER_TITLES.get(t.get('layer'), t.get('layer', ''))} | {_cell(t['technology'])} | "
+                     f"{_cell(t.get('purpose', ''))} | {t.get('status', 'recommended')} |")
+    lines.append("")
+
+    lines += [f"### {s}.7 Security considerations", "", _bullets(arch.get("security_considerations", [])), ""]
+    lines += [f"### {s}.8 Scalability and future enhancements", "", "**Scalability**", "",
+              _bullets(arch.get("scalability_considerations", [])), "", "**Future enhancements**", "",
+              _bullets(arch.get("future_enhancements", [])), ""]
+    return lines
+
+
 def build_markdown(*, run_id, status, brief, domains, plan_text, outputs, review, score, history, unknown_tech,
-                   estimate: dict | None = None) -> str:
+                   architecture=None, estimate: dict | None = None) -> str:
     estimate = estimate or {}
     title = brief.get("title", "Solution recommendation")
     lines: list[str] = [f"# {title}", ""]
@@ -135,8 +201,14 @@ def build_markdown(*, run_id, status, brief, domains, plan_text, outputs, review
     if review.get("summary"):
         lines += [f"**Reviewer:** {review['summary']}", ""]
 
-    # 2. Solution design
-    lines += ["## 2. Solution design", ""]
+    # 2. Solution architecture (diagram + presales narrative); later sections shift by one
+    n = 2
+    if architecture:
+        lines += architecture_markdown(run_id, architecture, n)
+        n += 1
+
+    # Solution design
+    lines += [f"## {n}. Solution design", ""]
     arch = estimate.get("architecture") or {}
     if arch:
         lines += ["### Recommended architecture", "", f"**Style:** {arch.get('style', '')}", "",
@@ -157,19 +229,19 @@ def build_markdown(*, run_id, status, brief, domains, plan_text, outputs, review
         lines += ["", "**Unresolved conflicts:**", "", _bullets(c["description"] for c in conflicts)]
     lines.append("")
 
-    # 3. Resources and estimate
-    lines += _estimate_section(estimate)
+    # Resources and estimate
+    lines += _estimate_section(estimate, n + 1)
 
-    # 4. Specialist findings
-    lines += ["## 4. Specialist findings", ""]
+    # Specialist findings
+    lines += [f"## {n + 2}. Specialist findings", ""]
     for agent, out in outputs.items():
         lines += [f"### {agent}", "", out.get("summary", ""), "", _bullets(out.get("design_notes", [])), ""]
 
-    # 5. Alternatives (already per choice) -> pointer
-    lines += ["## 5. Alternatives", "", "Listed per technology choice in section 2.", ""]
+    # Alternatives (already per choice) -> pointer
+    lines += [f"## {n + 3}. Alternatives", "", f"Listed per technology choice in section {n}.", ""]
 
-    # 6. Risks
-    lines += ["## 6. Risks", "", "| Risk | Severity | Likelihood | Mitigation | From |", "| --- | --- | --- | --- | --- |"]
+    # Risks
+    lines += [f"## {n + 4}. Risks", "", "| Risk | Severity | Likelihood | Mitigation | From |", "| --- | --- | --- | --- | --- |"]
     risks = [(a, r) for a, o in outputs.items() for r in o.get("risks", [])]
     risks.sort(key=lambda x: SEV_ORDER.get(x[1].get("severity", "low"), 9))
     for agent, r in risks:
@@ -179,8 +251,8 @@ def build_markdown(*, run_id, status, brief, domains, plan_text, outputs, review
         lines.append(f"| '{t}' is not in the approved catalogue | medium | - | Verify or add to catalogue | auto-check |")
     lines.append("")
 
-    # 7. Score
-    lines += ["## 7. Quality score", ""]
+    # Score
+    lines += [f"## {n + 5}. Quality score", ""]
     if score:
         lines += [f"**Overall: {score.overall}/100**", "", "| Dimension | Weight % | Score |", "| --- | --- | --- |"]
         for dim, w in sorted(score.weights.items(), key=lambda x: -x[1]):
@@ -189,15 +261,15 @@ def build_markdown(*, run_id, status, brief, domains, plan_text, outputs, review
             lines += ["", "Open blockers: " + "; ".join(score.blockers)]
     lines.append("")
 
-    # 8. Assumptions
+    # Assumptions
     assumptions = list(brief.get("assumptions", []))
     for out in outputs.values():
         assumptions += out.get("assumptions", [])
     assumptions += estimate.get("assumptions", [])
-    lines += ["## 8. Assumptions", "", _bullets(dict.fromkeys(assumptions)), ""]
+    lines += [f"## {n + 6}. Assumptions", "", _bullets(dict.fromkeys(assumptions)), ""]
 
-    # 9. Review history
-    lines += ["## 9. Review history", "", "| Round | Decision | Score | Findings (severity) |", "| --- | --- | --- | --- |"]
+    # Review history
+    lines += [f"## {n + 7}. Review history", "", "| Round | Decision | Score | Findings (severity) |", "| --- | --- | --- | --- |"]
     for h in history:
         f = ", ".join(f"{x.get('severity')}: {x.get('description','')[:60]}" for x in h["findings"]) or "none"
         lines.append(f"| {h['round']} | {h['decision']} | {h['overall']} | {f} |")

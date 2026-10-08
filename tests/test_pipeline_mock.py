@@ -30,6 +30,7 @@ async def test_frontend_only_pipeline():
     assert "cloud_agent" not in authors
     assert "frontend_agent" in authors and "reviewer" in authors
     assert state["domains"] == ["frontend"]
+    assert authors.index("architect") > authors.index("reviewer")
 
 
 @pytest.mark.asyncio

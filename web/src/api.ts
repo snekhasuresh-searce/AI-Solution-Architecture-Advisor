@@ -65,6 +65,8 @@ export const api = {
   runs: () => getJson<RunSummary[]>("/api/runs"),
   report: (runId: string) => getJson<{ run_id: string; markdown: string }>(`/api/runs/${runId}/report`),
   exportUrl: (runId: string, format: ExportFormat) => `/api/runs/${runId}/export/${format}`,
+  diagramUrl: (runId: string, format: "svg" | "png", download = false) =>
+    `/api/runs/${runId}/diagram.${format}${download ? "?download=true" : ""}`,
 
   async createSession(): Promise<string> {
     const res = await check(await fetch("/api/sessions", { method: "POST" }));

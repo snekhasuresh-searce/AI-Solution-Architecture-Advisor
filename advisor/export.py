@@ -2,7 +2,10 @@
 
 The report uses a small, fixed Markdown subset - headings, paragraphs, bullets,
 pipe tables, block quotes, rules and **bold** / *italic* / `code` - so it is
-parsed here directly instead of pulling in a full Markdown engine.
+parsed here directly instead of pulling in a full Markdown engine. An image
+line (`![alt](src)`) marks where the architecture diagram goes; it is drawn
+from the run's architecture JSON (vector in PDF, PNG in DOCX) on its own
+landscape page.
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from pathlib import Path
 # ----------------------------------------------------------------- parsing
 @dataclass
 class Block:
-    kind: str  # heading | para | bullets | table | quote | rule
+    kind: str  # heading | para | bullets | table | quote | rule | image
     text: str = ""
     level: int = 0
     items: list[str] = field(default_factory=list)
@@ -46,6 +49,9 @@ def parse(markdown: str) -> list[Block]:
         if m := re.match(r"^(#{1,6})\s+(.*)$", stripped):
             flush()
             blocks.append(Block("heading", text=m.group(2), level=len(m.group(1))))
+        elif m := re.fullmatch(r"!\[([^\]]*)\]\([^)]*\)", stripped):
+            flush()
+            blocks.append(Block("image", text=m.group(1)))
         elif re.fullmatch(r"-{3,}|\*{3,}", stripped):
             flush()
             blocks.append(Block("rule"))
@@ -106,8 +112,9 @@ def title_of(markdown: str) -> str:
 
 
 # -------------------------------------------------------------------- DOCX
-def to_docx(markdown: str) -> bytes:
+def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
     from docx import Document
+    from docx.enum.section import WD_ORIENT, WD_SECTION
     from docx.enum.table import WD_TABLE_ALIGNMENT
     from docx.shared import Inches, Pt, RGBColor
 
@@ -142,6 +149,23 @@ def to_docx(markdown: str) -> bytes:
                 add_runs(doc.add_paragraph(style="List Bullet"), item)
         elif block.kind == "quote":
             add_runs(doc.add_paragraph(style="Intense Quote"), block.text)
+        elif block.kind == "image":
+            if not architecture:
+                add_runs(doc.add_paragraph(), f"[{block.text}: not available for this run]")
+                continue
+            from .diagram import to_png
+
+            # The diagram gets its own landscape section, then portrait resumes.
+            portrait = doc.sections[-1]
+            land = doc.add_section(WD_SECTION.NEW_PAGE)
+            land.orientation = WD_ORIENT.LANDSCAPE
+            land.page_width, land.page_height = portrait.page_height, portrait.page_width
+            add_runs(doc.add_paragraph(), block.text, bold=True)
+            usable = land.page_width - land.left_margin - land.right_margin
+            doc.add_picture(io.BytesIO(to_png(architecture)), width=usable)
+            back = doc.add_section(WD_SECTION.NEW_PAGE)
+            back.orientation = WD_ORIENT.PORTRAIT
+            back.page_width, back.page_height = portrait.page_width, portrait.page_height
         elif block.kind == "rule":
             p = doc.add_paragraph()
             p.add_run("_" * 60).font.color.rgb = RGBColor(0xBB, 0xBB, 0xBB)
@@ -238,14 +262,14 @@ def _col_widths(rows: list[list[str]], total: float, char_w: float = 5.0) -> lis
     return widths
 
 
-def to_pdf(markdown: str) -> bytes:
+def to_pdf(markdown: str, architecture: dict | None = None) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_LEFT
-    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.platypus import (HRFlowable, ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer,
-                                    Table, TableStyle)
+    from reportlab.platypus import (BaseDocTemplate, Frame, HRFlowable, ListFlowable, ListItem, NextPageTemplate,
+                                    PageBreak, PageTemplate, Paragraph, Spacer, Table, TableStyle)
 
     regular, bold, uni = _fonts()
     ink, muted, accent, line = (colors.HexColor(c) for c in ("#1f2328", "#59636e", "#1f5fbf", "#d0d7de"))
@@ -263,9 +287,25 @@ def to_pdf(markdown: str) -> bytes:
     cell = ParagraphStyle("cell", parent=base, fontSize=8, leading=10.5)
     head = ParagraphStyle("head", parent=cell, fontName=bold)
 
+    def footer(canvas, _doc) -> None:
+        canvas.saveState()
+        canvas.setFont(regular, 8)
+        canvas.setFillColor(muted)
+        canvas.drawString(16 * mm, 9 * mm, "AI Solution Architecture Advisor")
+        canvas.drawRightString(canvas._pagesize[0] - 16 * mm, 9 * mm, f"Page {canvas.getPageNumber()}")
+        canvas.restoreState()
+
+    margin = 16 * mm
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=16 * mm, rightMargin=16 * mm, topMargin=16 * mm,
-                            bottomMargin=16 * mm, title=title_of(markdown))
+    doc = BaseDocTemplate(buf, pagesize=A4, leftMargin=margin, rightMargin=margin, topMargin=margin,
+                          bottomMargin=margin, title=title_of(markdown))
+    land = landscape(A4)
+    doc.addPageTemplates([
+        PageTemplate("portrait", [Frame(margin, margin, A4[0] - 2 * margin, A4[1] - 2 * margin, id="p")],
+                     onPage=footer, pagesize=A4),
+        PageTemplate("landscape", [Frame(margin, margin, land[0] - 2 * margin, land[1] - 2 * margin, id="l")],
+                     onPage=footer, pagesize=land),
+    ])
     story = []
     for block in parse(markdown):
         if block.kind == "heading":
@@ -274,6 +314,17 @@ def to_pdf(markdown: str) -> bytes:
             story.append(Paragraph(_markup(block.text, uni), para))
         elif block.kind == "quote":
             story.append(Paragraph(_markup(block.text, uni), quote))
+        elif block.kind == "image":
+            if not architecture:
+                story.append(Paragraph(_markup(f"[{block.text}: not available for this run]", uni), quote))
+                continue
+            from .diagram import to_drawing
+
+            box_w, box_h = land[0] - 2 * margin - 12, land[1] - 2 * margin - 40
+            story += [NextPageTemplate("landscape"), PageBreak(),
+                      Paragraph(_markup(block.text, uni), styles[3]),
+                      to_drawing(architecture, box_w, box_h),
+                      NextPageTemplate("portrait"), PageBreak()]
         elif block.kind == "rule":
             story.append(HRFlowable(width="100%", color=line, spaceBefore=6, spaceAfter=6))
         elif block.kind == "bullets":
@@ -294,15 +345,9 @@ def to_pdf(markdown: str) -> bytes:
             ]))
             story += [table, Spacer(1, 8)]
 
-    def footer(canvas, _doc) -> None:
-        canvas.saveState()
-        canvas.setFont(regular, 8)
-        canvas.setFillColor(muted)
-        canvas.drawString(16 * mm, 9 * mm, "AI Solution Architecture Advisor")
-        canvas.drawRightString(A4[0] - 16 * mm, 9 * mm, f"Page {canvas.getPageNumber()}")
-        canvas.restoreState()
-
-    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    while story and isinstance(story[-1], Spacer):  # a trailing spacer can spill onto a blank page
+        story.pop()
+    doc.build(story)
     return buf.getvalue()
 
 

@@ -217,6 +217,10 @@ code, .mono { font-family: var(--mono); font-size: 0.88em; }
 .markdown th { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
 .markdown tr:last-child td { border-bottom: 0; }
 .markdown td { min-width: 90px; }
+.markdown .diagram { display: block; margin: 8px 0 14px; border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden; background: #fff; }
+.markdown .diagram img { display: block; width: 100%; height: auto; }
+a.btn { text-decoration: none; }
 
 /* --------------------------------------------------------------- history */
 .history { position: sticky; top: 76px; align-self: start; max-height: calc(100vh - 100px); overflow-y: auto; }

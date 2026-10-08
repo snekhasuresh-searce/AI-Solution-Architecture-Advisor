@@ -43,10 +43,10 @@ def test_reorders_bad_ranges():
 def test_gantt_and_section():
     s = summarize(ESTIMATE)
     assert gantt(s.phases[0], s.total_weeks, width=8) == "██████░░"
-    text = "\n".join(_estimate_section(ESTIMATE))
+    text = "\n".join(_estimate_section(ESTIMATE, 3))
     for heading in ("Required human resources", "Required AI and technical resources",
                     "Estimated development effort", "Estimated timeline"):
         assert f"### {heading}" in text
     assert "No AI models or services are needed" in text
     assert "**Total: about 4 weeks**" in text
-    assert "not available" in "\n".join(_estimate_section({}))
+    assert "not available" in "\n".join(_estimate_section({}, 3))

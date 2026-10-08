@@ -20,7 +20,7 @@ export interface State {
   sessionId: string | null;
   busy: boolean;
   log: LogEntry[];
-  /** Pipeline order: analyzer, selected specialists, reviewer */
+  /** Pipeline order: analyzer, selected specialists, reviewer, architect */
   agents: AgentName[];
   status: Record<AgentName, AgentStatus>;
   reworks: Record<AgentName, number>;
@@ -56,7 +56,7 @@ export const initialState: State = {
 let nextId = 1;
 const entry = (role: LogEntry["role"], text: string): LogEntry => ({ id: nextId++, role, text });
 
-const STAGES = new Set(["analyzer", "reviewer", "estimator"]);
+const STAGES = new Set(["analyzer", "reviewer", "estimator", "architect"]);
 export const isSpecialist = (a: AgentName) => !STAGES.has(a);
 
 function onEvent(state: State, event: AdvisorEvent): State {
@@ -65,9 +65,9 @@ function onEvent(state: State, event: AdvisorEvent): State {
       return { ...state, agents: state.agents.length ? state.agents : [event.agent],
                status: { ...state.status, [event.agent]: "running" } };
     case "plan": {
-      const status: State["status"] = { ...state.status, reviewer: "pending", estimator: "pending" };
+      const status: State["status"] = { ...state.status, reviewer: "pending", estimator: "pending", architect: "pending" };
       for (const a of event.agents) status[a] = "running";
-      return { ...state, agents: ["analyzer", ...event.agents, "reviewer", "estimator"], status };
+      return { ...state, agents: ["analyzer", ...event.agents, "reviewer", "estimator", "architect"], status };
     }
     case "agent_done": {
       const status = { ...state.status, [event.agent]: "done" as const };
@@ -140,6 +140,7 @@ export const AGENT_LABELS: Record<string, string> = {
   aiml: "AI/ML",
   reviewer: "Reviewer",
   estimator: "Delivery estimator",
+  architect: "Solution architect",
 };
 
 export const agentLabel = (a: AgentName) => AGENT_LABELS[a] ?? a;

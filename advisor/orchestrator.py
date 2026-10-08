@@ -8,7 +8,9 @@ Flow per user turn:
      the responsible specialists, up to N rounds, then escalate to a human.
   5. Estimator turns the reviewed design into project type, architecture,
      team, technical resources, effort and timeline.
-  6. Final recommendation package is saved as Markdown and logged.
+  6. Solution Architect turns the final design into a high-level architecture
+     (layers, data flows, requirement traceability); diagram.py draws it.
+  7. Final recommendation package is saved as Markdown and logged to SQLite.
 
 A custom BaseAgent is used (rather than fixed Sequential/Parallel/Loop agents)
 because the set of specialists changes on every request.
@@ -27,6 +29,7 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event, EventActions
 from google.genai import types
 
+from . import architecture as arch_store
 from . import report, storage
 from .catalogue import unknown_choices
 from .config import settings
@@ -65,11 +68,13 @@ class AdvisorOrchestrator(BaseAgent):
     analyzer: LlmAgent
     reviewer: LlmAgent
     estimator: LlmAgent
+    architect: LlmAgent
     specialists: dict[str, LlmAgent]
 
     model_config = {"arbitrary_types_allowed": True}
 
     def __init__(self, name: str, analyzer: LlmAgent, reviewer: LlmAgent, estimator: LlmAgent,
+                 architect: LlmAgent,
                  specialists: dict[str, LlmAgent]):
         super().__init__(
             name=name,
@@ -77,8 +82,9 @@ class AdvisorOrchestrator(BaseAgent):
             analyzer=analyzer,
             reviewer=reviewer,
             estimator=estimator,
+            architect=architect,
             specialists=specialists,
-            sub_agents=[analyzer, *specialists.values(), reviewer, estimator],
+            sub_agents=[analyzer, *specialists.values(), reviewer, estimator, architect],
         )
 
     # ------------------------------------------------------------------ helpers
@@ -300,7 +306,28 @@ class AdvisorOrchestrator(BaseAgent):
         except Exception:  # noqa: BLE001 - the design is still worth delivering without an estimate
             log.exception("Estimator failed; the report is produced without an estimate")
 
-        # 6. Final package ------------------------------------------------------
+        # 6. High-level solution architecture -----------------------------------
+        chosen = [t.get("choice", "") for o in outputs.values() for t in o.get("technology_choices", [])]
+        architecture = None
+        yield self._set_state(ctx, {"architect_context": {
+            "requirement": requirement_text,
+            "cloud_relevant": cloud_relevant,
+            "solution": json.dumps(outputs, indent=2),
+        }})
+        try:
+            async for event in self.architect.run_async(ctx):
+                yield self._quiet(event)
+            raw = _as_dict(ctx.session.state.get("architecture"))
+            if raw.get("nodes"):
+                architecture = arch_store.normalize(raw, brief=brief, requirement_text=requirement_text,
+                                                    chosen=chosen)
+                arch_store.save(run_id, architecture)
+        except Exception:  # noqa: BLE001 - the recommendation is still useful without a diagram
+            log.exception("Architect agent failed; report is saved without the architecture section")
+        if architecture is None:
+            yield self._say(ctx, "The architecture diagram could not be generated for this run.")
+
+        # 7. Final package ------------------------------------------------------
         markdown = report.build_markdown(
             run_id=run_id,
             status=status,
@@ -312,9 +339,8 @@ class AdvisorOrchestrator(BaseAgent):
             score=result,
             estimate=estimate,
             history=history,
-            unknown_tech=unknown_choices(
-                [t.get("choice", "") for o in outputs.values() for t in o.get("technology_choices", [])]
-            ),
+            unknown_tech=unknown_choices(chosen),
+            architecture=architecture,
         )
         path = report.save(run_id, markdown)
         storage.log_run(
@@ -326,7 +352,7 @@ class AdvisorOrchestrator(BaseAgent):
             status=status,
             overall=result.overall if result else None,
             rounds=len(history),
-            payload={"brief": brief, "outputs": outputs, "history": history, "estimate": estimate},
+            payload={"brief": brief, "outputs": outputs, "history": history, "estimate": estimate, "architecture": architecture},
         )
         yield self._say(ctx, markdown + f"\n\n---\n_Saved to `{path}` (run `{run_id}`)._",
                         state={"last_run": {"run_id": run_id, "status": status}})

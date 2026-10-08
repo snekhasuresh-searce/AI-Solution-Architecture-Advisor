@@ -23,6 +23,7 @@ export function Pipeline({ state }: { state: State }) {
   const specialists = agents.filter(isSpecialist);
   const hasReviewer = agents.includes("reviewer");
   const hasEstimator = agents.includes("estimator");
+  const hasArchitect = agents.includes("architect");
 
   return (
     <section className="card pipeline" aria-label="Agent progress">
@@ -56,6 +57,12 @@ export function Pipeline({ state }: { state: State }) {
           <li className="stage">
             <span className="stage-label">4 · Estimate</span>
             <ul><Node name="estimator" status={status.estimator} /></ul>
+          </li>
+        )}
+        {hasArchitect && (
+          <li className="stage">
+            <span className="stage-label">5 · Architecture diagram</span>
+            <ul><Node name="architect" status={status.architect} /></ul>
           </li>
         )}
       </ol>

@@ -205,6 +205,90 @@ def _review(system: str) -> dict:
             "scores": scores}
 
 
+# --------------------------------------------------------------- architect
+def _architect(system: str) -> dict:
+    m = re.search(r"## Domains\n([^\n]*)", system)
+    domains = [d.strip() for d in (m.group(1) if m else "").split(",") if d.strip()]
+    m = re.search(r"## Requirement brief\n(.*?)\n## ", system, re.S)
+    try:
+        brief = json.loads(m.group(1)) if m else {}
+    except json.JSONDecodeError:
+        brief = {}
+    ai = "aiml" in domains
+    frontend_only = domains == ["frontend"]
+    cloud = "Cloud in scope: yes" in system
+
+    def node(id, label, layer, kind, tech="", status="required", purpose=""):
+        return {"id": id, "label": label, "layer": layer, "kind": kind, "technology": tech, "status": status,
+                "purpose": purpose or f"Mock: {label.lower()}"}
+
+    infra = "required" if cloud else "recommended"
+    nodes = [
+        node("end_user", "End users", "users", "actor"),
+        node("admin_user", "Admin users", "users", "actor"),
+        node("cdn", "CDN & edge", "infrastructure", "cloud_service", "Cloud CDN", "recommended"),
+        node("load_balancer", "Load balancer + WAF", "infrastructure", "cloud_service", "Cloud Load Balancing", infra),
+        node("web_app", "Web application", "application", "proposed", "Next.js"),
+        node("auth", "Authentication", "application", "proposed", "Identity Platform"),
+        node("iam", "IAM & RBAC", "security", "cloud_service", "Cloud IAM"),
+        node("secrets", "Secrets management", "security", "cloud_service", "Secret Manager", "recommended"),
+        node("encryption", "Encryption (TLS / at rest)", "security", "cloud_service"),
+        node("audit", "Audit logging", "security", "cloud_service", "Cloud Audit Logs", "recommended"),
+        node("monitoring", "App & perf monitoring", "operations", "cloud_service", "Cloud Monitoring", "recommended"),
+        node("logging", "Central logging", "operations", "cloud_service", "Cloud Logging", "recommended"),
+        node("alerts", "Alerting", "operations", "cloud_service", "Cloud Monitoring", "recommended"),
+    ]
+    request = [("end_user", "cdn", "HTTPS request"), ("cdn", "load_balancer", "Route + filter"),
+               ("load_balancer", "web_app", "Serve app"), ("web_app", "auth", "Sign in")]
+    if not frontend_only:
+        nodes += [
+            node("api_gateway", "API Gateway", "api", "proposed", "REST"),
+            node("backend", "Backend services", "api", "proposed", "NestJS"),
+            node("workflow", "Workflow processing", "api", "proposed", status="recommended"),
+            node("app_db", "Relational database", "data", "data_store", "PostgreSQL"),
+            node("file_store", "Object storage", "data", "data_store", "Cloud Storage", "recommended"),
+            node("notify", "Email / notifications", "integrations", "third_party", status="recommended"),
+        ]
+        request += [("web_app", "api_gateway", "API call (JWT)"), ("api_gateway", "backend", "Validated request"),
+                    ("backend", "app_db", "Read / write"), ("backend", "notify", "Notify"),
+                    ("backend", "web_app", "Response")]
+    else:
+        request += [("web_app", "end_user", "Rendered page")]
+    flows = [{"name": "Request / response", "kind": "request",
+              "steps": [{"source": a, "target": b, "label": l} for a, b, l in request]}]
+    if ai:
+        nodes += [
+            node("orchestrator", "AI orchestrator", "ai", "ai", purpose="Routes questions, builds prompts, applies guardrails"),
+            node("llm", "LLM", "ai", "ai", "Gemini", purpose="Generates grounded answers; AI is needed for free-text Q&A"),
+            node("retriever", "RAG retrieval", "ai", "ai", purpose="Finds relevant passages so answers cite sources"),
+            node("ingestion", "Document ingestion", "ai", "proposed", purpose="Chunks and embeds documents"),
+            node("vector_db", "Vector store", "data", "data_store", "pgvector"),
+        ]
+        steps = [("end_user", "web_app", "Ask question"), ("web_app", "api_gateway", "POST /ask"),
+                 ("api_gateway", "orchestrator", "Prompt request"), ("orchestrator", "retriever", "Retrieve context"),
+                 ("retriever", "vector_db", "Similarity search"), ("orchestrator", "llm", "Grounded prompt"),
+                 ("orchestrator", "backend", "Apply business rules"), ("backend", "web_app", "Answer + citations")]
+        flows.append({"name": "AI question answering", "kind": "ai",
+                      "steps": [{"source": a, "target": b, "label": l} for a, b, l in steps]})
+    ids = [n["id"] for n in nodes]
+    reqs = brief.get("functional_requirements", []) + brief.get("non_functional_requirements", [])
+    mapping = [{"requirement": r, "components": ids[4:6] if i % 2 else ids[6:8]} for i, r in enumerate(reqs)]
+    return {
+        "title": brief.get("title", "Solution architecture"),
+        "overview": "Mock architecture: users reach a web application through a managed edge; services, "
+                    "data and (where needed) AI components run inside one cloud boundary.",
+        "cloud_provider": "Google Cloud" if cloud else "To be confirmed",
+        "nodes": nodes,
+        "flows": flows,
+        "requirement_mapping": mapping,
+        "assumptions": ["Mock: single region deployment", "Mock: corporate SSO is available"],
+        "technology_stack": [],
+        "security_considerations": ["Mock: TLS everywhere, least-privilege IAM, secrets in a vault"],
+        "scalability_considerations": ["Mock: stateless services scale horizontally"],
+        "future_enhancements": ["Mock: add analytics warehouse once usage grows"],
+    }
+
+
 class MockLlm(BaseLlm):
     model: str = "mock"
 
@@ -225,6 +309,8 @@ class MockLlm(BaseLlm):
             payload = _review(system)
         elif role == "estimator":
             payload = _estimate(system)
+        elif role == "architect":
+            payload = _architect(system)
         else:
             payload = {"note": "mock"}
         yield LlmResponse(content=types.Content(role="model", parts=[types.Part(text=json.dumps(payload))]))
