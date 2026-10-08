@@ -6,7 +6,9 @@ Flow per user turn:
   3. Selected specialists run in parallel.
   4. Reviewer scores the combined solution; REWORK findings go back only to
      the responsible specialists, up to N rounds, then escalate to a human.
-  5. Final recommendation package is saved as Markdown and logged to SQLite.
+  5. Estimator turns the reviewed design into project type, architecture,
+     team, technical resources, effort and timeline.
+  6. Final recommendation package is saved as Markdown and logged.
 
 A custom BaseAgent is used (rather than fixed Sequential/Parallel/Loop agents)
 because the set of specialists changes on every request.
@@ -62,18 +64,21 @@ class AdvisorOrchestrator(BaseAgent):
 
     analyzer: LlmAgent
     reviewer: LlmAgent
+    estimator: LlmAgent
     specialists: dict[str, LlmAgent]
 
     model_config = {"arbitrary_types_allowed": True}
 
-    def __init__(self, name: str, analyzer: LlmAgent, reviewer: LlmAgent, specialists: dict[str, LlmAgent]):
+    def __init__(self, name: str, analyzer: LlmAgent, reviewer: LlmAgent, estimator: LlmAgent,
+                 specialists: dict[str, LlmAgent]):
         super().__init__(
             name=name,
             description="AI Solution Architecture Advisor coordinator",
             analyzer=analyzer,
             reviewer=reviewer,
+            estimator=estimator,
             specialists=specialists,
-            sub_agents=[analyzer, *specialists.values(), reviewer],
+            sub_agents=[analyzer, *specialists.values(), reviewer, estimator],
         )
 
     # ------------------------------------------------------------------ helpers
@@ -280,8 +285,22 @@ class AdvisorOrchestrator(BaseAgent):
             async for event in self._run_parallel([self.specialists[k] for k in routed], ctx):
                 yield self._quiet(event)
 
-        # 5. Final package ------------------------------------------------------
+        # 5. Estimate resources, effort and timeline -----------------------------
         outputs = {a: _as_dict(ctx.session.state.get(f"spec_{a}")) for a in selected}
+        yield self._set_state(ctx, {"estimate_context": {
+            "agents": selected,
+            "solution": json.dumps(outputs, indent=2),
+            "review": f"{status}, score {result.overall if result else '-'}/100. {review.get('summary', '')}",
+        }})
+        estimate: dict = {}
+        try:
+            async for event in self.estimator.run_async(ctx):
+                yield self._quiet(event)
+            estimate = _as_dict(ctx.session.state.get("estimate"))
+        except Exception:  # noqa: BLE001 - the design is still worth delivering without an estimate
+            log.exception("Estimator failed; the report is produced without an estimate")
+
+        # 6. Final package ------------------------------------------------------
         markdown = report.build_markdown(
             run_id=run_id,
             status=status,
@@ -291,6 +310,7 @@ class AdvisorOrchestrator(BaseAgent):
             outputs=outputs,
             review=review,
             score=result,
+            estimate=estimate,
             history=history,
             unknown_tech=unknown_choices(
                 [t.get("choice", "") for o in outputs.values() for t in o.get("technology_choices", [])]
@@ -306,7 +326,7 @@ class AdvisorOrchestrator(BaseAgent):
             status=status,
             overall=result.overall if result else None,
             rounds=len(history),
-            payload={"brief": brief, "outputs": outputs, "history": history},
+            payload={"brief": brief, "outputs": outputs, "history": history, "estimate": estimate},
         )
         yield self._say(ctx, markdown + f"\n\n---\n_Saved to `{path}` (run `{run_id}`)._",
                         state={"last_run": {"run_id": run_id, "status": status}})

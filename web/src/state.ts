@@ -56,7 +56,8 @@ export const initialState: State = {
 let nextId = 1;
 const entry = (role: LogEntry["role"], text: string): LogEntry => ({ id: nextId++, role, text });
 
-const isSpecialist = (a: AgentName) => a !== "analyzer" && a !== "reviewer";
+const STAGES = new Set(["analyzer", "reviewer", "estimator"]);
+export const isSpecialist = (a: AgentName) => !STAGES.has(a);
 
 function onEvent(state: State, event: AdvisorEvent): State {
   switch (event.type) {
@@ -64,9 +65,9 @@ function onEvent(state: State, event: AdvisorEvent): State {
       return { ...state, agents: state.agents.length ? state.agents : [event.agent],
                status: { ...state.status, [event.agent]: "running" } };
     case "plan": {
-      const status: State["status"] = { ...state.status, reviewer: "pending" };
+      const status: State["status"] = { ...state.status, reviewer: "pending", estimator: "pending" };
       for (const a of event.agents) status[a] = "running";
-      return { ...state, agents: ["analyzer", ...event.agents, "reviewer"], status };
+      return { ...state, agents: ["analyzer", ...event.agents, "reviewer", "estimator"], status };
     }
     case "agent_done": {
       const status = { ...state.status, [event.agent]: "done" as const };
@@ -85,7 +86,7 @@ function onEvent(state: State, event: AdvisorEvent): State {
       for (const a of event.agents) {
         status[a] = "running";
         reworks[a] = (reworks[a] ?? 0) + 1;
-        if (!agents.includes(a)) agents.splice(agents.length - 1, 0, a); // reviewer pulled in a new specialist
+        if (!agents.includes(a)) agents.splice(agents.indexOf("reviewer"), 0, a); // reviewer pulled in a new specialist
       }
       return { ...state, agents, status, reworks };
     }
@@ -138,6 +139,7 @@ export const AGENT_LABELS: Record<string, string> = {
   performance: "Performance",
   aiml: "AI/ML",
   reviewer: "Reviewer",
+  estimator: "Delivery estimator",
 };
 
 export const agentLabel = (a: AgentName) => AGENT_LABELS[a] ?? a;
