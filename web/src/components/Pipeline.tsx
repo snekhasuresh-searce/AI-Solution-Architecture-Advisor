@@ -22,6 +22,7 @@ export function Pipeline({ state }: { state: State }) {
   if (!agents.length) return null;
   const specialists = agents.filter(isSpecialist);
   const hasReviewer = agents.includes("reviewer");
+  const hasEstimator = agents.includes("estimator");
   const hasArchitect = agents.includes("architect");
 
   return (
@@ -52,9 +53,15 @@ export function Pipeline({ state }: { state: State }) {
             </ul>
           </li>
         )}
+        {hasEstimator && (
+          <li className="stage">
+            <span className="stage-label">4 · Estimate</span>
+            <ul><Node name="estimator" status={status.estimator} /></ul>
+          </li>
+        )}
         {hasArchitect && (
           <li className="stage">
-            <span className="stage-label">4 · Architecture diagram</span>
+            <span className="stage-label">5 · Architecture diagram</span>
             <ul><Node name="architect" status={status.architect} /></ul>
           </li>
         )}

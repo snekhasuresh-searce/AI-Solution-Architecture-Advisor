@@ -47,7 +47,7 @@ def _agent_key(author: str) -> str | None:
     """ADK event author -> the name the web app uses for that agent."""
     if author == "requirement_analyzer":
         return "analyzer"
-    if author in ("reviewer", "architect"):
+    if author in ("reviewer", "estimator", "architect"):
         return author
     if author.endswith("_agent"):
         return author.removesuffix("_agent")
@@ -62,11 +62,13 @@ async def _events(session_id: str, text: str) -> AsyncIterator[dict]:
         delta = (event.actions.state_delta if event.actions else None) or {}
         if event.author != root_agent.name:
             agent = _agent_key(event.author)
-            if agent and (f"spec_{agent}" in delta or {"analysis", "review", "architecture"} & delta.keys()):
+            if agent and (f"spec_{agent}" in delta or {"analysis", "review", "estimate", "architecture"} & delta.keys()):
                 yield {"type": "agent_done", "agent": agent}
             continue
         if "selected_agents" in delta:
             yield {"type": "plan", "agents": delta["selected_agents"]}
+        if "estimate_context" in delta:
+            yield {"type": "agent_start", "agent": "estimator"}
         rework = [k.removeprefix("rework_") for k, v in delta.items() if k.startswith("rework_") and v]
         if rework:
             yield {"type": "rework", "agents": rework}

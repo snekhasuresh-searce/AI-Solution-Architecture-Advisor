@@ -6,9 +6,11 @@ Flow per user turn:
   3. Selected specialists run in parallel.
   4. Reviewer scores the combined solution; REWORK findings go back only to
      the responsible specialists, up to N rounds, then escalate to a human.
-  5. Solution Architect turns the final design into a high-level architecture
+  5. Estimator turns the reviewed design into project type, architecture,
+     team, technical resources, effort and timeline.
+  6. Solution Architect turns the final design into a high-level architecture
      (layers, data flows, requirement traceability); diagram.py draws it.
-  6. Final recommendation package is saved as Markdown and logged to SQLite.
+  7. Final recommendation package is saved as Markdown and logged to SQLite.
 
 A custom BaseAgent is used (rather than fixed Sequential/Parallel/Loop agents)
 because the set of specialists changes on every request.
@@ -65,21 +67,24 @@ class AdvisorOrchestrator(BaseAgent):
 
     analyzer: LlmAgent
     reviewer: LlmAgent
+    estimator: LlmAgent
     architect: LlmAgent
     specialists: dict[str, LlmAgent]
 
     model_config = {"arbitrary_types_allowed": True}
 
-    def __init__(self, name: str, analyzer: LlmAgent, reviewer: LlmAgent, architect: LlmAgent,
+    def __init__(self, name: str, analyzer: LlmAgent, reviewer: LlmAgent, estimator: LlmAgent,
+                 architect: LlmAgent,
                  specialists: dict[str, LlmAgent]):
         super().__init__(
             name=name,
             description="AI Solution Architecture Advisor coordinator",
             analyzer=analyzer,
             reviewer=reviewer,
+            estimator=estimator,
             architect=architect,
             specialists=specialists,
-            sub_agents=[analyzer, *specialists.values(), reviewer, architect],
+            sub_agents=[analyzer, *specialists.values(), reviewer, estimator, architect],
         )
 
     # ------------------------------------------------------------------ helpers
@@ -286,10 +291,23 @@ class AdvisorOrchestrator(BaseAgent):
             async for event in self._run_parallel([self.specialists[k] for k in routed], ctx):
                 yield self._quiet(event)
 
+        # 5. Estimate resources, effort and timeline -----------------------------
         outputs = {a: _as_dict(ctx.session.state.get(f"spec_{a}")) for a in selected}
-        chosen = [t.get("choice", "") for o in outputs.values() for t in o.get("technology_choices", [])]
+        yield self._set_state(ctx, {"estimate_context": {
+            "agents": selected,
+            "solution": json.dumps(outputs, indent=2),
+            "review": f"{status}, score {result.overall if result else '-'}/100. {review.get('summary', '')}",
+        }})
+        estimate: dict = {}
+        try:
+            async for event in self.estimator.run_async(ctx):
+                yield self._quiet(event)
+            estimate = _as_dict(ctx.session.state.get("estimate"))
+        except Exception:  # noqa: BLE001 - the design is still worth delivering without an estimate
+            log.exception("Estimator failed; the report is produced without an estimate")
 
-        # 5. High-level solution architecture -----------------------------------
+        # 6. High-level solution architecture -----------------------------------
+        chosen = [t.get("choice", "") for o in outputs.values() for t in o.get("technology_choices", [])]
         architecture = None
         yield self._set_state(ctx, {"architect_context": {
             "requirement": requirement_text,
@@ -309,7 +327,7 @@ class AdvisorOrchestrator(BaseAgent):
         if architecture is None:
             yield self._say(ctx, "The architecture diagram could not be generated for this run.")
 
-        # 6. Final package ------------------------------------------------------
+        # 7. Final package ------------------------------------------------------
         markdown = report.build_markdown(
             run_id=run_id,
             status=status,
@@ -319,6 +337,7 @@ class AdvisorOrchestrator(BaseAgent):
             outputs=outputs,
             review=review,
             score=result,
+            estimate=estimate,
             history=history,
             unknown_tech=unknown_choices(chosen),
             architecture=architecture,
@@ -333,7 +352,7 @@ class AdvisorOrchestrator(BaseAgent):
             status=status,
             overall=result.overall if result else None,
             rounds=len(history),
-            payload={"brief": brief, "outputs": outputs, "history": history, "architecture": architecture},
+            payload={"brief": brief, "outputs": outputs, "history": history, "estimate": estimate, "architecture": architecture},
         )
         yield self._say(ctx, markdown + f"\n\n---\n_Saved to `{path}` (run `{run_id}`)._",
                         state={"last_run": {"run_id": run_id, "status": status}})

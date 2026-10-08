@@ -37,8 +37,14 @@ def test_run_stream_and_exports(client):
     assert types[0] == "agent_start" and types[-1] == "end" and "error" not in types
     assert next(e for e in events if e["type"] == "plan")["agents"] == ["frontend", "uiux", "security", "performance"]
     assert {"type": "rework", "agents": ["security"]} in events
+    assert {"type": "agent_start", "agent": "estimator"} in events
+    assert {"type": "agent_done", "agent": "estimator"} in events
     report = next(e for e in events if e["type"] == "report")
     assert report["status"] == "APPROVED" and report["markdown"].startswith("# ")
+    for section in ("**Project type:**", "### Recommended architecture", "### Recommended technology stack",
+                    "### Required human resources", "### Required AI and technical resources",
+                    "### Estimated development effort", "### Estimated timeline"):
+        assert section in report["markdown"]
 
     run_id = report["run_id"]
     assert client.get("/api/runs").json()[0]["run_id"] == run_id

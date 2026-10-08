@@ -120,6 +120,64 @@ class ReviewOutput(BaseModel):
 
 
 # --------------------------------------------------------------------------
+# Estimator: project type, architecture, resources, effort, timeline
+# --------------------------------------------------------------------------
+Complexity = Literal["small", "medium", "large", "enterprise"]
+
+
+class ProjectType(BaseModel):
+    label: str = Field(description="Plain-language type, e.g. 'Static marketing website (frontend only)'")
+    complexity: Complexity
+    rationale: str = Field(description="One sentence on why this complexity")
+
+
+class Architecture(BaseModel):
+    style: str = Field(description="Architecture style, e.g. 'Jamstack static site', 'Modular monolith', "
+                                   "'Serverless microservices', 'RAG pipeline'")
+    overview: str = Field(description="Three to five sentences: how the parts fit and how data flows")
+    layers: list[str] = Field(default_factory=list, description="Main layers or tiers, each 'Name: what it does'")
+
+
+class HumanResource(BaseModel):
+    role: str = Field(description="e.g. 'Frontend developer', 'ML engineer', 'QA engineer', 'Project manager'")
+    count: float = Field(ge=0.1, le=50, description="Headcount in full-time equivalents; 0.5 = half time")
+    seniority: Literal["junior", "mid", "senior", "lead"]
+    responsibilities: str
+    phases: list[str] = Field(default_factory=list, description="Phase names this role works in")
+
+
+class TechnicalResource(BaseModel):
+    category: Literal["ai_model", "ai_service", "cloud_compute", "cloud_storage", "database", "hosting",
+                      "dev_tooling", "testing", "monitoring", "environment", "third_party_service", "other"]
+    name: str = Field(description="Product or resource name; use catalogue names where they exist")
+    purpose: str
+    sizing: str = Field(description="Tier, size or quantity, e.g. '2 vCPU / 4 GB, min 1 instance', "
+                                    "'~50k requests/month', 'dev + staging + prod'")
+
+
+class PhaseEstimate(BaseModel):
+    phase: str = Field(description="e.g. 'Discovery & design', 'Frontend build', 'Testing & hardening', 'Launch'")
+    activities: list[str] = Field(default_factory=list)
+    roles: list[str] = Field(default_factory=list, description="Roles from human_resources working in this phase")
+    effort_days_low: float = Field(ge=0, description="Person-days, optimistic")
+    effort_days_likely: float = Field(ge=0, description="Person-days, most likely")
+    effort_days_high: float = Field(ge=0, description="Person-days, pessimistic")
+    start_week: int = Field(ge=1, description="Week the phase starts; phases may overlap")
+    duration_weeks: float = Field(ge=0.5, description="Calendar weeks for the phase with the proposed team")
+    depends_on: list[str] = Field(default_factory=list, description="Phases that must finish first")
+
+
+class EstimationOutput(BaseModel):
+    project_type: ProjectType
+    architecture: Architecture
+    human_resources: list[HumanResource]
+    technical_resources: list[TechnicalResource]
+    phases: list[PhaseEstimate]
+    assumptions: list[str] = Field(default_factory=list)
+    risks_to_estimate: list[str] = Field(default_factory=list, description="What could make it take longer")
+
+
+# --------------------------------------------------------------------------
 # Solution Architect (high-level architecture diagram + presales narrative)
 # --------------------------------------------------------------------------
 # Logical layers of the diagram, in drawing order.

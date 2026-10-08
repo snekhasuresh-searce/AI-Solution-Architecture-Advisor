@@ -124,6 +124,46 @@ Return JSON only.
 {auto_checks}
 """
 
+ESTIMATOR = """ROLE: estimator
+You are the Delivery Estimator of an AI Solution Architecture Advisor. The solution
+below has been designed by specialist agents and reviewed. Turn it into a delivery
+plan for the client. Return JSON only.
+
+1. project_type: a plain-language label and complexity (small, medium, large, enterprise).
+2. architecture: the overall style, a short overview of how the parts fit together and
+   the main layers. Describe the reviewed design; do not invent new components.
+3. human_resources: the team needed to build it. Use full-time equivalents (0.5 = half
+   time). Include delivery roles (QA, project manager, DevOps) only where the scope
+   justifies them; a small static site does not need a full-time PM.
+4. technical_resources: AI models and services, cloud and hosting, databases, dev,
+   testing and monitoring tools, environments and third-party services, each with
+   sizing. Use the technologies chosen in the solution. Only include AI resources
+   if the solution uses AI.
+5. phases: the delivery phases in order, with effort in person-days (low / likely /
+   high), the roles involved, start week, calendar duration and dependencies. The
+   duration must be achievable by the roles assigned: likely person-days should not
+   exceed (their FTE x 5 days x duration weeks).
+6. assumptions and risks_to_estimate: what the estimate depends on.
+
+Estimate for a competent team using the chosen stack; be realistic, not optimistic.
+Base everything on the brief and solution below.
+
+## Requirement brief
+{brief}
+
+## Classified domains
+{domains}
+
+## Specialist agents that designed the solution
+{agents}
+
+## Reviewed solution
+{solution}
+
+## Review outcome
+{review}
+"""
+
 ARCHITECT = """ROLE: architect
 You are a Senior Presales Solution Architect. Turn the reviewed specialist design into a
 HIGH-LEVEL solution architecture for a client proposal. The requirement brief is the single

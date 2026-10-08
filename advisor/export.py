@@ -193,7 +193,8 @@ _FONT_CANDIDATES = [
     ("/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf"),
     ("C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),
 ]
-_ASCII = {"→": "->", "←": "<-", "≤": "<=", "≥": ">=", "✓": "v", "✔": "v", "✗": "x", "≈": "~"}
+_ASCII = {"→": "->", "←": "<-", "≤": "<=", "≥": ">=", "✓": "v", "✔": "v", "✗": "x", "≈": "~",
+          "█": "#", "░": "."}
 _font_cache: tuple[str, str, bool] | None = None
 
 

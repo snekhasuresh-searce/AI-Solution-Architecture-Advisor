@@ -137,6 +137,55 @@ def _specialist(name: str, rework: bool) -> dict:
     }
 
 
+# --------------------------------------------------------------- estimator
+_ROLES = {  # specialist -> (role, FTE, seniority)
+    "frontend": ("Frontend developer", 1, "mid"),
+    "uiux": ("UI/UX designer", 0.5, "mid"),
+    "backend": ("Backend developer", 1, "senior"),
+    "database": ("Data engineer", 0.5, "mid"),
+    "cloud": ("Cloud/DevOps engineer", 0.5, "senior"),
+    "security": ("Security engineer", 0.25, "senior"),
+    "aiml": ("ML engineer", 1, "senior"),
+}
+
+
+def _estimate(system: str) -> dict:
+    m = re.search(r"## Specialist agents that designed the solution\n([^\n]*)", system)
+    agents = [a.strip() for a in (m.group(1) if m else "frontend").split(",") if a.strip()]
+    team = [{"role": r, "count": c, "seniority": s, "responsibilities": f"Mock: {r.lower()} work",
+             "phases": ["Build"]} for a in agents if a in _ROLES for r, c, s in [_ROLES[a]]]
+    team += [{"role": "QA engineer", "count": 0.5, "seniority": "mid", "responsibilities": "Mock: testing",
+              "phases": ["Testing"]},
+             {"role": "Project manager", "count": 0.25, "seniority": "senior", "responsibilities": "Mock: delivery",
+              "phases": ["Discovery", "Build", "Testing"]}]
+    builders = [t["role"] for t in team if t["role"] not in ("QA engineer", "Project manager")]
+    fte = sum(t["count"] for t in team if t["role"] in builders)
+    tech = [{"category": "hosting", "name": "Vercel", "purpose": "Mock hosting", "sizing": "Pro plan"},
+            {"category": "testing", "name": "Playwright", "purpose": "Mock E2E tests", "sizing": "CI runs"}]
+    if "aiml" in agents:
+        tech.insert(0, {"category": "ai_model", "name": "Gemini", "purpose": "Mock LLM", "sizing": "~1M tokens/day"})
+    return {
+        "project_type": {"label": "Mock project", "complexity": "medium", "rationale": "Mock estimate."},
+        "architecture": {"style": "Mock architecture", "overview": "Mock overview of the reviewed design.",
+                         "layers": ["Presentation: mock", "Services: mock"]},
+        "human_resources": team,
+        "technical_resources": tech,
+        "phases": [
+            {"phase": "Discovery", "activities": ["Workshops"], "roles": [builders[0], "Project manager"],
+             "effort_days_low": 3, "effort_days_likely": 5, "effort_days_high": 7, "start_week": 1,
+             "duration_weeks": 1, "depends_on": []},
+            {"phase": "Build", "activities": ["Implementation"], "roles": builders,
+             "effort_days_low": 15 * fte, "effort_days_likely": 20 * fte, "effort_days_high": 25 * fte,
+             "start_week": 2, "duration_weeks": 4, "depends_on": ["Discovery"]},
+            {"phase": "Testing", "activities": ["E2E and fixes"], "roles": ["QA engineer", builders[0]],
+             "effort_days_low": 5, "effort_days_likely": 7, "effort_days_high": 10, "start_week": 6,
+             "duration_weeks": 2, "depends_on": ["Build"]},
+        ],
+        "assumptions": ["Mock estimate: replace with a real model for meaningful numbers"],
+        "risks_to_estimate": ["Mock risk to estimate"],
+    }
+
+
 # ---------------------------------------------------------------- reviewer
 def _review(system: str) -> dict:
     m = re.search(r"Score ONLY these dimensions, 0-100: ([^\n]+)\.", system)
@@ -258,6 +307,8 @@ class MockLlm(BaseLlm):
             payload = _specialist(name, rework="Reviewer findings you must fix" in system)
         elif role == "reviewer":
             payload = _review(system)
+        elif role == "estimator":
+            payload = _estimate(system)
         elif role == "architect":
             payload = _architect(system)
         else:
