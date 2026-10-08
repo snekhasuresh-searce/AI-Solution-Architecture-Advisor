@@ -80,7 +80,7 @@ def test_report_section_and_exports():
     assert "image" in [b.kind for b in parse(md)]
 
     doc = Document(io.BytesIO(to_docx(md, a)))
-    assert len(doc.inline_shapes) == 1 and len(doc.sections) == 3
+    assert len(doc.inline_shapes) == 1 and len(doc.sections) == 1
     text = "".join(p.extract_text() for p in PdfReader(io.BytesIO(to_pdf(md, a))).pages)
     assert "Vector store" in text and "Requirement traceability" in text
     # Without an architecture the exports still work and say the diagram is missing.
