@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi, ROLES, type ManagedUser, type Role, type User } from "../api";
+import { useToast } from "../toast";
 import { Icon, Spinner } from "./Icon";
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -15,6 +16,7 @@ export function AdminUsers({ me }: { me: User }) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  const toast = useToast();
 
   const load = useCallback(() => {
     adminApi.users().then(setUsers).catch((err) => setError(err instanceof Error ? err.message : String(err)));
@@ -23,12 +25,15 @@ export function AdminUsers({ me }: { me: User }) {
 
   const change = async (user: ManagedUser, update: { role?: Role; active?: boolean }) => {
     setSaving(user.id);
-    setError(null);
     try {
       const saved = await adminApi.update(user.id, update);
       setUsers((list) => list?.map((u) => (u.id === saved.id ? { ...u, ...saved } : u)) ?? null);
+      const who = user.name || user.email;
+      if (update.role) toast.success(`${who} is now ${saved.role}`, { message: ROLE_HELP[saved.role] + "." });
+      else if (update.active === false) toast.success(`${who} deactivated`, { message: "They have been signed out everywhere." });
+      else toast.success(`${who} restored`, { message: "They can sign in again." });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toast.error(`Could not update ${user.email}`, { message: err instanceof Error ? err.message : String(err) });
     } finally {
       setSaving(null);
     }

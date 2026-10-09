@@ -78,7 +78,7 @@ class AdvisorOrchestrator(BaseAgent):
                  specialists: dict[str, LlmAgent]):
         super().__init__(
             name=name,
-            description="AI Solution Architecture Advisor coordinator",
+            description="Nexora AI solution architecture advisor coordinator",
             analyzer=analyzer,
             reviewer=reviewer,
             estimator=estimator,
@@ -165,7 +165,7 @@ class AdvisorOrchestrator(BaseAgent):
         if analysis.get("is_requirement") is False:
             yield self._say(
                 ctx,
-                "Hi! I'm the AI Solution Architecture Advisor. Describe what you want to build "
+                "Hi! I'm Nexora, your AI solution architecture advisor. Describe what you want to build "
                 "and I'll analyse it, run the relevant specialist agents, review the design and "
                 "return a recommendation.\n\nFor example: *\"I need a responsive company website "
                 "with Home, About and Contact pages. Frontend only.\"*",

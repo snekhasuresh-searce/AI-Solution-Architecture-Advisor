@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { api, type Scenario } from "../api";
+import { useToast } from "../toast";
 import { Icon, Spinner } from "./Icon";
 
 interface Props {
@@ -13,8 +14,8 @@ interface Props {
 export function Composer({ busy, awaitingAnswer, hasConversation, scenarios, onSubmit }: Props) {
   const [text, setText] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const toast = useToast();
 
   const submit = () => {
     const value = text.trim();
@@ -26,11 +27,16 @@ export function Composer({ busy, awaitingAnswer, hasConversation, scenarios, onS
   const upload = async (file: File | undefined) => {
     if (!file) return;
     setUploading(true);
-    setUploadError(null);
     try {
-      setText(await api.intake(file));
+      const extracted = await api.intake(file);
+      if (!extracted.trim()) {
+        toast.error(`No text found in ${file.name}`, { message: "Scanned PDFs need text; try a .docx or .txt version." });
+        return;
+      }
+      setText(extracted);
+      toast.success(`Loaded ${file.name}`, { message: "Review the requirement, then press Analyze." });
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : String(err));
+      toast.error(`Could not read ${file.name}`, { message: err instanceof Error ? err.message : String(err) });
     } finally {
       setUploading(false);
       if (fileInput.current) fileInput.current.value = "";
@@ -70,7 +76,6 @@ export function Composer({ busy, awaitingAnswer, hasConversation, scenarios, onS
           ))}
         </div>
       )}
-      {uploadError && <p className="inline-error"><Icon name="alert" size={14} /> {uploadError}</p>}
       <div className="composer-actions">
         <input ref={fileInput} type="file" accept=".txt,.md,.pdf,.docx" hidden
                onChange={(e) => upload(e.target.files?.[0])} />
