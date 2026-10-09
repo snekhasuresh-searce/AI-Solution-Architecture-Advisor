@@ -1,0 +1,19 @@
+{
+  "_comment": "USD per 1M tokens. Each model has dated price periods; the one in force when a call is made is used. 'cached_input' is the price of input served from a prompt cache. Thinking tokens are billed as output. Update this file when prices change; runs already logged keep the cost computed at the time.",
+  "_sources": {
+    "gemini": "https://ai.google.dev/gemini-api/docs/pricing (paid tier, checked 2026-10-09; page updated 2026-10-07)",
+    "claude": "Anthropic first-party API prices (checked 2026-10-09)"
+  },
+  "models": {
+    "gemini-3.8-flash": [
+      {"from": null, "input": 0.75, "output": 3.75, "cached_input": 0.075},
+      {"from": "2027-01-01", "input": 1.50, "output": 7.50, "cached_input": 0.15}
+    ],
+    "gemini-3.5-flash": [{"from": null, "input": 1.50, "output": 9.00, "cached_input": 0.15}],
+    "gemini-3.5-flash-lite": [{"from": null, "input": 0.30, "output": 2.50, "cached_input": 0.03}],
+    "claude-opus-5-5": [{"from": null, "input": 4.00, "output": 20.00, "cached_input": 0.20}],
+    "claude-sonnet-5-5": [{"from": null, "input": 2.00, "output": 10.00, "cached_input": 0.20}],
+    "claude-haiku-4-5": [{"from": null, "input": 1.00, "output": 5.00, "cached_input": 0.10}]
+  },
+  "free_prefixes": ["mock-", "ollama", "ollama_chat/"]
+}

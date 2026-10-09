@@ -1,0 +1,17 @@
+# Serves the built app and forwards /api to the backend (BACKEND_URL).
+server {
+  listen ${PORT};
+  root /usr/share/nginx/html;
+
+  location /api/ {
+    proxy_pass ${BACKEND_URL};
+    proxy_set_header Host $host;
+    proxy_buffering off;          # stream agent progress as it happens
+    proxy_read_timeout 600s;      # a full run can take several minutes
+    client_max_body_size 10m;     # requirement uploads
+  }
+
+  location / {
+    try_files $uri /index.html;
+  }
+}

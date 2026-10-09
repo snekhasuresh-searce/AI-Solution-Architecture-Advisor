@@ -1,0 +1,21 @@
+# Runs both projects together: http://localhost:8000 (frontend), API on :8080.
+#   docker compose up --build
+services:
+  backend:
+    build: ./backend
+    env_file: ./backend/.env
+    environment:
+      ADVISOR_CORS_ORIGINS: http://localhost:8000
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend/outputs:/app/outputs   # keep reports and diagrams between restarts
+
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_URL: http://backend:8080
+    ports:
+      - "8000:80"
+    depends_on:
+      - backend
