@@ -1,7 +1,4 @@
+# Shared; each project has its own .gitignore too.
+.DS_Store
 .env
 .venv/
-__pycache__/
-outputs/*
-!outputs/.gitkeep
-.pytest_cache/
-.adk/

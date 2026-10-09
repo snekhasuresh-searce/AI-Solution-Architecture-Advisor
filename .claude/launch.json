@@ -2,15 +2,26 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "advisor",
-      "runtimeExecutable": ".venv/Scripts/python.exe",
-      "runtimeArgs": ["-m", "uvicorn", "advisor.api:app", "--port", "8091"],
+      "name": "backend",
+      "runtimeExecutable": "backend/.venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "advisor.api:app",
+        "--app-dir",
+        "backend",
+        "--port",
+        "8091"
+      ],
       "port": 8091
     },
     {
-      "name": "advisor-mock",
+      "name": "backend-mock",
       "runtimeExecutable": "cmd.exe",
-      "runtimeArgs": ["/c", "set ADVISOR_PROVIDER=mock&& .venv\\Scripts\\python.exe -m uvicorn advisor.api:app --port 8092"],
+      "runtimeArgs": [
+        "/c",
+        "set ADVISOR_PROVIDER=mock&& backend\\.venv\\Scripts\\python.exe -m uvicorn advisor.api:app --app-dir backend --port 8092"
+      ],
       "port": 8092
     }
   ]
