@@ -1,0 +1,263 @@
+{
+  "title": "I need a responsive company website with Home, About and Con",
+  "overview": "Mock architecture: users reach a web application through a managed edge; services, data and (where needed) AI components run inside one cloud boundary.",
+  "cloud_provider": "To be confirmed",
+  "nodes": [
+    {
+      "id": "end_user",
+      "label": "End users",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "Mock: end users"
+    },
+    {
+      "id": "admin_user",
+      "label": "Admin users",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "Mock: admin users"
+    },
+    {
+      "id": "cdn",
+      "label": "CDN & edge",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "Cloud CDN",
+      "status": "recommended",
+      "purpose": "Mock: cdn & edge"
+    },
+    {
+      "id": "load_balancer",
+      "label": "Load balancer + WAF",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "Cloud Load Balancing",
+      "status": "recommended",
+      "purpose": "Mock: load balancer + waf"
+    },
+    {
+      "id": "web_app",
+      "label": "Web application",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "Next.js",
+      "status": "required",
+      "purpose": "Mock: web application"
+    },
+    {
+      "id": "auth",
+      "label": "Authentication",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "Identity Platform",
+      "status": "required",
+      "purpose": "Mock: authentication"
+    },
+    {
+      "id": "iam",
+      "label": "IAM & RBAC",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "Cloud IAM",
+      "status": "recommended",
+      "purpose": "Mock: iam & rbac"
+    },
+    {
+      "id": "secrets",
+      "label": "Secrets management",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "Secret Manager",
+      "status": "recommended",
+      "purpose": "Mock: secrets management"
+    },
+    {
+      "id": "encryption",
+      "label": "Encryption (TLS / at rest)",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "",
+      "status": "required",
+      "purpose": "Mock: encryption (tls / at rest)"
+    },
+    {
+      "id": "audit",
+      "label": "Audit logging",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "Cloud Audit Logs",
+      "status": "recommended",
+      "purpose": "Mock: audit logging"
+    },
+    {
+      "id": "monitoring",
+      "label": "App & perf monitoring",
+      "layer": "operations",
+      "kind": "cloud_service",
+      "technology": "Cloud Monitoring",
+      "status": "recommended",
+      "purpose": "Mock: app & perf monitoring"
+    },
+    {
+      "id": "logging",
+      "label": "Central logging",
+      "layer": "operations",
+      "kind": "cloud_service",
+      "technology": "Cloud Logging",
+      "status": "recommended",
+      "purpose": "Mock: central logging"
+    },
+    {
+      "id": "alerts",
+      "label": "Alerting",
+      "layer": "operations",
+      "kind": "cloud_service",
+      "technology": "Cloud Monitoring",
+      "status": "recommended",
+      "purpose": "Mock: alerting"
+    }
+  ],
+  "flows": [
+    {
+      "name": "Request / response",
+      "kind": "request",
+      "steps": [
+        {
+          "source": "end_user",
+          "target": "cdn",
+          "label": "HTTPS request"
+        },
+        {
+          "source": "cdn",
+          "target": "load_balancer",
+          "label": "Route + filter"
+        },
+        {
+          "source": "load_balancer",
+          "target": "web_app",
+          "label": "Serve app"
+        },
+        {
+          "source": "web_app",
+          "target": "auth",
+          "label": "Sign in"
+        },
+        {
+          "source": "web_app",
+          "target": "end_user",
+          "label": "Rendered page"
+        }
+      ]
+    }
+  ],
+  "requirement_mapping": [
+    {
+      "requirement": "As described in the requirement",
+      "components": [
+        "iam",
+        "secrets"
+      ]
+    },
+    {
+      "requirement": "Responsive",
+      "components": [
+        "web_app",
+        "auth"
+      ]
+    },
+    {
+      "requirement": "Secure",
+      "components": [
+        "iam",
+        "secrets"
+      ]
+    },
+    {
+      "requirement": "Maintainable",
+      "components": [
+        "web_app",
+        "auth"
+      ]
+    }
+  ],
+  "unmapped": [],
+  "assumptions": [
+    "Mock: single region deployment",
+    "Mock: corporate SSO is available"
+  ],
+  "technology_stack": [
+    {
+      "layer": "infrastructure",
+      "technology": "Cloud CDN",
+      "purpose": "Mock: cdn & edge",
+      "status": "recommended"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "Cloud Load Balancing",
+      "purpose": "Mock: load balancer + waf",
+      "status": "recommended"
+    },
+    {
+      "layer": "application",
+      "technology": "Next.js",
+      "purpose": "Mock: web application",
+      "status": "required"
+    },
+    {
+      "layer": "application",
+      "technology": "Identity Platform",
+      "purpose": "Mock: authentication",
+      "status": "required"
+    },
+    {
+      "layer": "security",
+      "technology": "Cloud IAM",
+      "purpose": "Mock: iam & rbac",
+      "status": "recommended"
+    },
+    {
+      "layer": "security",
+      "technology": "Secret Manager",
+      "purpose": "Mock: secrets management",
+      "status": "recommended"
+    },
+    {
+      "layer": "security",
+      "technology": "Cloud Audit Logs",
+      "purpose": "Mock: audit logging",
+      "status": "recommended"
+    },
+    {
+      "layer": "operations",
+      "technology": "Cloud Monitoring",
+      "purpose": "Mock: app & perf monitoring",
+      "status": "recommended"
+    },
+    {
+      "layer": "operations",
+      "technology": "Cloud Logging",
+      "purpose": "Mock: central logging",
+      "status": "recommended"
+    },
+    {
+      "layer": "operations",
+      "technology": "Cloud Monitoring",
+      "purpose": "Mock: alerting",
+      "status": "recommended"
+    }
+  ],
+  "security_considerations": [
+    "Mock: TLS everywhere, least-privilege IAM, secrets in a vault"
+  ],
+  "scalability_considerations": [
+    "Mock: stateless services scale horizontally"
+  ],
+  "future_enhancements": [
+    "Mock: add analytics warehouse once usage grows"
+  ]
+}

@@ -1,0 +1,374 @@
+{
+  "title": "Japanese Market Ride-Hailing Platform",
+  "overview": "A scalable, high-performance ride-hailing taxi platform tailored for the Japanese market, featuring native mobile apps for riders and drivers, sub-millisecond geospatial dispatch, and secure cloud infrastructure.",
+  "cloud_provider": "Google Cloud Platform",
+  "nodes": [
+    {
+      "id": "riders",
+      "label": "Riders & Drivers",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "End-users requesting, accepting, and completing taxi rides across Japan."
+    },
+    {
+      "id": "admins",
+      "label": "Platform Administrators",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "Operations staff monitoring fleets, managing user verifications, and configuring pricing."
+    },
+    {
+      "id": "rider_app",
+      "label": "Rider Mobile App",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "React Native",
+      "status": "required",
+      "purpose": "Native mobile application for passengers to request rides and track trips."
+    },
+    {
+      "id": "driver_app",
+      "label": "Driver Mobile App",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "React Native",
+      "status": "required",
+      "purpose": "Native mobile application for taxi operators to receive dispatch offers."
+    },
+    {
+      "id": "admin_portal",
+      "label": "Admin Web Dashboard",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "React",
+      "status": "required",
+      "purpose": "Web-based portal for monitoring fleet operations and managing pricing rules."
+    },
+    {
+      "id": "api_gateway",
+      "label": "API Gateway",
+      "layer": "api",
+      "kind": "cloud_service",
+      "technology": "Cloud Load Balancing",
+      "status": "required",
+      "purpose": "Manage ingress traffic, TLS termination, and secure routing for clients."
+    },
+    {
+      "id": "dispatch_service",
+      "label": "Dispatch & Matching Service",
+      "layer": "api",
+      "kind": "proposed",
+      "technology": "Go",
+      "status": "required",
+      "purpose": "Execute real-time spatial queries and algorithms to pair riders with drivers."
+    },
+    {
+      "id": "pricing_billing_service",
+      "label": "Pricing & Billing Service",
+      "layer": "api",
+      "kind": "proposed",
+      "technology": "Go",
+      "status": "required",
+      "purpose": "Calculate dynamic fares and process payments via localized Japanese gateways."
+    },
+    {
+      "id": "tracking_service",
+      "label": "Real-time Tracking Service",
+      "layer": "api",
+      "kind": "proposed",
+      "technology": "Go",
+      "status": "required",
+      "purpose": "Handle high-frequency GPS coordinate streams and broadcast updates."
+    },
+    {
+      "id": "spanner_db",
+      "label": "Transactional Database",
+      "layer": "data",
+      "kind": "cloud_service",
+      "technology": "Spanner",
+      "status": "required",
+      "purpose": "Store user profiles, ride bookings, and transactional trip history with consistency."
+    },
+    {
+      "id": "redis_geo",
+      "label": "Geospatial Cache",
+      "layer": "data",
+      "kind": "cloud_service",
+      "technology": "Memorystore",
+      "status": "required",
+      "purpose": "Deliver sub-millisecond in-memory operations for active driver location tracking."
+    },
+    {
+      "id": "bigquery_dw",
+      "label": "Analytical Warehouse",
+      "layer": "data",
+      "kind": "cloud_service",
+      "technology": "BigQuery",
+      "status": "recommended",
+      "purpose": "Aggregate historical trip data for business intelligence and dynamic pricing."
+    },
+    {
+      "id": "payment_gateway",
+      "label": "Japanese Payment Gateway",
+      "layer": "integrations",
+      "kind": "third_party",
+      "technology": "External Payment API",
+      "status": "recommended",
+      "purpose": "Process secure in-app payments tailored to Japanese payment methods."
+    },
+    {
+      "id": "gke_cluster",
+      "label": "Container Orchestration",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "GKE",
+      "status": "required",
+      "purpose": "Run and autoscale containerized microservices across Japanese regions."
+    },
+    {
+      "id": "pubsub",
+      "label": "Messaging Backbone",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "Pub/Sub",
+      "status": "required",
+      "purpose": "Ingest high-throughput, asynchronous GPS updates and event streams."
+    },
+    {
+      "id": "iam_security",
+      "label": "IAM & Authorization",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "OAuth 2.0",
+      "status": "required",
+      "purpose": "Enforce token-based authentication and principle of least privilege access."
+    },
+    {
+      "id": "secret_manager",
+      "label": "Secret & Key Manager",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "Secret Manager",
+      "status": "required",
+      "purpose": "Securely manage API keys, database credentials, and encryption keys."
+    },
+    {
+      "id": "cloud_monitoring",
+      "label": "Cloud Monitoring",
+      "layer": "operations",
+      "kind": "cloud_service",
+      "technology": "Cloud Monitoring",
+      "status": "required",
+      "purpose": "Track infrastructure health, latency SLOs, and 99.99% uptime metrics."
+    }
+  ],
+  "flows": [
+    {
+      "name": "Ride Dispatch Request",
+      "kind": "request",
+      "steps": [
+        {
+          "source": "riders",
+          "target": "rider_app",
+          "label": "Request ride"
+        },
+        {
+          "source": "rider_app",
+          "target": "api_gateway",
+          "label": "HTTPS request"
+        },
+        {
+          "source": "api_gateway",
+          "target": "dispatch_service",
+          "label": "Route dispatch API"
+        },
+        {
+          "source": "dispatch_service",
+          "target": "redis_geo",
+          "label": "Query nearby drivers"
+        },
+        {
+          "source": "dispatch_service",
+          "target": "spanner_db",
+          "label": "Persist trip booking"
+        },
+        {
+          "source": "dispatch_service",
+          "target": "rider_app",
+          "label": "Return matched driver"
+        },
+        {
+          "source": "rider_app",
+          "target": "riders",
+          "label": "Display confirmation"
+        }
+      ]
+    }
+  ],
+  "requirement_mapping": [
+    {
+      "requirement": "Real-time location tracking and geo-spatial matching of riders and drivers",
+      "components": [
+        "rider_app",
+        "driver_app",
+        "tracking_service",
+        "dispatch_service",
+        "redis_geo",
+        "pubsub"
+      ]
+    },
+    {
+      "requirement": "Dynamic pricing based on demand, traffic, and distance",
+      "components": [
+        "pricing_billing_service",
+        "bigquery_dw"
+      ]
+    },
+    {
+      "requirement": "Secure in-app payment processing tailored to Japanese payment methods",
+      "components": [
+        "pricing_billing_service",
+        "payment_gateway",
+        "secret_manager"
+      ]
+    },
+    {
+      "requirement": "Trip history and receipt generation",
+      "components": [
+        "rider_app",
+        "spanner_db",
+        "bigquery_dw"
+      ]
+    },
+    {
+      "requirement": "Driver onboarding and verification workflow",
+      "components": [
+        "driver_app",
+        "admin_portal",
+        "spanner_db"
+      ]
+    },
+    {
+      "requirement": "High availability (99.99% uptime)",
+      "components": [
+        "gke_cluster",
+        "api_gateway",
+        "cloud_monitoring"
+      ]
+    },
+    {
+      "requirement": "Low latency for real-time dispatch and GPS updates",
+      "components": [
+        "redis_geo",
+        "tracking_service",
+        "gke_cluster"
+      ]
+    },
+    {
+      "requirement": "Scalability to handle peak rush hours and large events",
+      "components": [
+        "gke_cluster",
+        "pubsub",
+        "redis_geo"
+      ]
+    },
+    {
+      "requirement": "Robust security and data encryption for financial and personal location data",
+      "components": [
+        "iam_security",
+        "secret_manager",
+        "spanner_db"
+      ]
+    }
+  ],
+  "unmapped": [],
+  "assumptions": [
+    "Integration with local Japanese payment gateways will be required for seamless local transactions.",
+    "Mapping and navigation data will leverage standard commercial map APIs available in Japan.",
+    "GCP regions in Tokyo and Osaka provide sufficient compute and data redundancy.",
+    "Drivers frequently mount devices in orientations requiring robust responsive design."
+  ],
+  "technology_stack": [
+    {
+      "layer": "application",
+      "technology": "React Native",
+      "purpose": "Cross-platform native mobile apps for riders and drivers.",
+      "status": "required"
+    },
+    {
+      "layer": "application",
+      "technology": "React",
+      "purpose": "Admin web dashboard for platform operators.",
+      "status": "required"
+    },
+    {
+      "layer": "api",
+      "technology": "Go",
+      "purpose": "High concurrency backend runtime for dispatch and tracking.",
+      "status": "required"
+    },
+    {
+      "layer": "data",
+      "technology": "Spanner",
+      "purpose": "Globally distributed relational database for transactional consistency.",
+      "status": "required"
+    },
+    {
+      "layer": "data",
+      "technology": "Memorystore (Redis)",
+      "purpose": "In-memory caching and geospatial indexing.",
+      "status": "required"
+    },
+    {
+      "layer": "data",
+      "technology": "BigQuery",
+      "purpose": "Massive-scale analytics and historical data warehousing.",
+      "status": "recommended"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "GKE",
+      "purpose": "Container orchestration for microservices.",
+      "status": "required"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "Pub/Sub",
+      "purpose": "Asynchronous event messaging backbone for GPS streams.",
+      "status": "required"
+    },
+    {
+      "layer": "security",
+      "technology": "Secret Manager",
+      "purpose": "Secure storage for database credentials and API keys.",
+      "status": "required"
+    },
+    {
+      "layer": "operations",
+      "technology": "Cloud Monitoring",
+      "purpose": "Tracking infrastructure health and 99.99% uptime SLOs.",
+      "status": "required"
+    }
+  ],
+  "security_considerations": [
+    "Enforce TLS 1.3 for all data in transit across mobile applications and backend APIs.",
+    "Ensure complete data residency within Japanese GCP regions to comply with APPI regulations.",
+    "Store sensitive credentials and payment API keys securely using Secret Manager.",
+    "Apply fine-grained IAM least-privilege policies across all cloud resources."
+  ],
+  "scalability_considerations": [
+    "Configure horizontal pod autoscaling on GKE to absorb sudden peaks during Tokyo rush hours.",
+    "Utilize Redis geospatial clustering to scale real-time driver proximity lookups.",
+    "Offload ephemeral high-frequency location writes to in-memory caches before batch-persisting.",
+    "Deploy multi-zone replication within Tokyo and Osaka regions for fault tolerance."
+  ],
+  "future_enhancements": [
+    "AI-driven demand forecasting and predictive positioning for drivers.",
+    "Automated driver document verification using OCR and computer vision.",
+    "Expanded loyalty programs and corporate account management modules."
+  ]
+}

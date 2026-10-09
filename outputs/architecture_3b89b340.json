@@ -1,0 +1,879 @@
+{
+  "title": "Japan Ride-Hailing Taxi Platform \u2013 High-Level Solution Architecture",
+  "overview": "A Japan-hosted taxi booking platform with separate React Native apps for riders and drivers and a web console for taxi operators and administrators. It works only with licensed taxi companies. Backend microservices on Google Cloud in Tokyo, with a warm standby in Osaka, match riders to nearby taxis within seconds, calculate fares and handle Japanese payment methods. The platform issues qualified-invoice receipts and keeps all personal data in Japan.",
+  "cloud_provider": "Google Cloud Platform (asia-northeast1 Tokyo primary, asia-northeast2 Osaka warm standby)",
+  "nodes": [
+    {
+      "id": "rider",
+      "label": "Riders",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "Japanese residents and inbound tourists who request, track and pay for licensed taxis."
+    },
+    {
+      "id": "driver",
+      "label": "Taxi Drivers",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "Licensed taxi drivers who go online, accept rides, navigate and view their earnings."
+    },
+    {
+      "id": "fleet_operator",
+      "label": "Fleet Operators",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "Licensed taxi companies that manage their own drivers, vehicles, fares and trips through tenant-scoped console access."
+    },
+    {
+      "id": "admin_support",
+      "label": "Admins & Support",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "Platform administrators and support staff who handle onboarding, pricing, promotions, tickets, SOS escalations and analytics."
+    },
+    {
+      "id": "rider_app",
+      "label": "Rider App",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "React Native",
+      "status": "required",
+      "purpose": "iOS/Android app for login, JA/EN place search, fare estimates, booking and reservations, live tracking, masked chat/call, payments via native payment-adapter modules, receipts, safety features and ratings, in four languages."
+    },
+    {
+      "id": "driver_app",
+      "label": "Driver App",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "React Native",
+      "status": "required",
+      "purpose": "iOS/Android app for the online/offline toggle, accept/decline, navigation handoff, background location every 3-5 s, earnings and offline-tolerant trip state."
+    },
+    {
+      "id": "admin_console",
+      "label": "Admin/Operator Console",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "Next.js",
+      "status": "required",
+      "purpose": "Role-based web console for driver onboarding, fleet management, pricing and surcharge configuration, promotions, support tickets, a live operations map and analytics."
+    },
+    {
+      "id": "keycloak_ciam",
+      "label": "Keycloak Identity (CIAM)",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "Keycloak",
+      "status": "required",
+      "purpose": "Japan-hosted authentication with separate customer and staff realms. Customers sign in with SMS OTP, email or Apple/Google/LINE via OpenID Connect; staff use mandatory MFA. It issues short-lived JWTs, and identity data stays in Japan."
+    },
+    {
+      "id": "api_gateway",
+      "label": "API Gateway / BFFs",
+      "layer": "api",
+      "kind": "proposed",
+      "technology": "NestJS (REST/OpenAPI, WebSocket)",
+      "status": "recommended",
+      "purpose": "Rider, driver and admin BFFs that validate JWTs, enforce rate limits and locale negotiation, and expose WebSocket channels for live trip and location events."
+    },
+    {
+      "id": "dispatch_location",
+      "label": "Dispatch & Location Services",
+      "layer": "api",
+      "kind": "proposed",
+      "technology": "Go (gRPC)",
+      "status": "recommended",
+      "purpose": "Low-latency services that ingest driver GPS every 3-5 s, keep the geo-index current, match riders to the nearest available taxi within 3 s and fan out positions and ETA to riders."
+    },
+    {
+      "id": "business_services",
+      "label": "Core Business Services",
+      "layer": "api",
+      "kind": "proposed",
+      "technology": "NestJS",
+      "status": "required",
+      "purpose": "Domain microservices for accounts, ride lifecycle and reservations, pricing/fare, operator and fleet, ratings and support, and communications (push, SMS, masked chat/call)."
+    },
+    {
+      "id": "payment_invoice",
+      "label": "Payment & Invoice Service",
+      "layer": "api",
+      "kind": "proposed",
+      "technology": "NestJS",
+      "status": "required",
+      "purpose": "Tokenized payment orchestration (cards with 3DS, Apple/Google Pay, PayPay/d\u6255\u3044, corporate billing, cash recording) with a double-entry ledger and qualified-invoice receipts carrying operator T-numbers."
+    },
+    {
+      "id": "partner_adapter",
+      "label": "Partner Integration Adapter",
+      "layer": "api",
+      "kind": "proposed",
+      "technology": "Go",
+      "status": "required",
+      "purpose": "Anti-corruption layer with pluggable connectors that normalizes partner taxi-meter fares, IC card payments and fleet dispatch status into platform events."
+    },
+    {
+      "id": "spanner",
+      "label": "Core Transactional Store",
+      "layer": "data",
+      "kind": "data_store",
+      "technology": "Spanner",
+      "status": "required",
+      "purpose": "Strongly consistent system of record for accounts, drivers, fleets, rate cards, rides, reservations, payments, ledger and invoices. Its Japan-only topology (Option A dual-region or Option B regional plus Osaka standby) is set at a decision gate."
+    },
+    {
+      "id": "memorystore",
+      "label": "Live Geo Cache",
+      "layer": "data",
+      "kind": "data_store",
+      "technology": "Memorystore",
+      "status": "required",
+      "purpose": "Redis GEO index of driver positions and availability, dispatch offer locks, and caches of rate cards and eligibility for sub-millisecond matching."
+    },
+    {
+      "id": "cloud_sql",
+      "label": "Back-office & Identity DB",
+      "layer": "data",
+      "kind": "data_store",
+      "technology": "Cloud SQL",
+      "status": "required",
+      "purpose": "PostgreSQL store for off-path support tickets, lost items, onboarding review and campaign drafts, plus the Keycloak identity store, with an Osaka replica."
+    },
+    {
+      "id": "bigquery",
+      "label": "Analytics Warehouse",
+      "layer": "data",
+      "kind": "data_store",
+      "technology": "BigQuery",
+      "status": "required",
+      "purpose": "Japan-located warehouse fed by change streams for operator dashboards, MLIT and tax reporting, and console analytics."
+    },
+    {
+      "id": "cloud_storage",
+      "label": "Document & Archive Storage",
+      "layer": "data",
+      "kind": "data_store",
+      "technology": "Cloud Storage",
+      "status": "required",
+      "purpose": "Dual-region Tokyo/Osaka storage for invoice PDFs, driver documents, chat attachments and retention-locked archives."
+    },
+    {
+      "id": "maps_provider",
+      "label": "Maps & Geolocation",
+      "layer": "integrations",
+      "kind": "third_party",
+      "technology": "Google Maps Platform / Zenrin",
+      "status": "required",
+      "purpose": "Japanese/English address search, routing, ETA and fixed-fare route calculation, and driver navigation handoff."
+    },
+    {
+      "id": "payment_providers",
+      "label": "Payment Gateways & Wallets",
+      "layer": "integrations",
+      "kind": "third_party",
+      "technology": "Japan PCI DSS PSP (e.g. GMO-PG/Stripe JP), PayPay, d\u6255\u3044, Apple Pay, Google Pay",
+      "status": "recommended",
+      "purpose": "Card tokenization with EMV 3DS, digital wallets and QR payments, keeping card data out of the platform's PCI scope."
+    },
+    {
+      "id": "messaging_providers",
+      "label": "SMS, Telephony & Push",
+      "layer": "integrations",
+      "kind": "third_party",
+      "technology": "Japan-resident SMS/telephony provider, APNs, FCM",
+      "status": "recommended",
+      "purpose": "SMS OTP and alerts, masked calling with in-Japan processing, and push notifications whose payloads contain no PII."
+    },
+    {
+      "id": "social_login",
+      "label": "Social Login Providers",
+      "layer": "integrations",
+      "kind": "third_party",
+      "technology": "LINE Login, Sign in with Apple, Google",
+      "status": "recommended",
+      "purpose": "OIDC federation brokered by Keycloak for the login methods the brief requires."
+    },
+    {
+      "id": "partner_taxi_systems",
+      "label": "Partner Meters & Dispatch",
+      "layer": "integrations",
+      "kind": "third_party",
+      "technology": "Partner vendor systems",
+      "status": "recommended",
+      "purpose": "Taxi meters and fleet dispatch systems of licensed partner taxi companies, used for final fares, IC payments and overflow dispatch."
+    },
+    {
+      "id": "global_edge",
+      "label": "Global Load Balancer & CDN",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "Cloud Load Balancing, Cloud CDN",
+      "status": "required",
+      "purpose": "Single anycast entry point with TLS, WebSocket support and health-checked Tokyo/Osaka failover. Static console assets are served from the CDN."
+    },
+    {
+      "id": "gke",
+      "label": "GKE Regional Clusters",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "GKE",
+      "status": "required",
+      "purpose": "Multi-zone Tokyo cluster with a warm Osaka standby for dispatch, location streaming, ride state, the partner adapter and Keycloak, with HPA on custom metrics."
+    },
+    {
+      "id": "cloud_run",
+      "label": "Serverless Services",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "Cloud Run",
+      "status": "required",
+      "purpose": "Autoscaled hosting in both regions for stateless business, payment, notification, support and admin backend services."
+    },
+    {
+      "id": "pubsub_dataflow",
+      "label": "Event Backbone",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "Pub/Sub, Dataflow",
+      "status": "required",
+      "purpose": "Japan-pinned asynchronous events with a transactional outbox and change streams, feeding notifications, receipts, cache invalidation, analytics and Option B Spanner replication."
+    },
+    {
+      "id": "vpc_network",
+      "label": "Private Networking",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "VPC",
+      "status": "required",
+      "purpose": "Shared VPC with private GKE nodes, private IP for managed services, and Cloud NAT egress to allowlisted gateway, maps and SMS endpoints."
+    },
+    {
+      "id": "cloud_armor",
+      "label": "WAF & DDoS Protection",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "Cloud Armor",
+      "status": "required",
+      "purpose": "OWASP rules, adaptive DDoS protection and rate limits, with stricter policies on login, OTP and booking endpoints."
+    },
+    {
+      "id": "iam",
+      "label": "IAM & Org Policies",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "IAM",
+      "status": "required",
+      "purpose": "Least-privilege Workload Identity per service and resource-location Org Policies that restrict deployment to Tokyo and Osaka."
+    },
+    {
+      "id": "cloud_kms",
+      "label": "Encryption Keys",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "Cloud KMS",
+      "status": "required",
+      "purpose": "Japan keyrings for CMEK on all stores, Keycloak signing keys and per-user PII envelope encryption, which enables APPI crypto-shredding."
+    },
+    {
+      "id": "secret_manager",
+      "label": "Secrets Management",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "Secret Manager",
+      "status": "required",
+      "purpose": "Rotated, Japan-replicated storage for payment, maps, SMS, LINE and OIDC credentials."
+    },
+    {
+      "id": "vpc_service_controls",
+      "label": "Data Perimeters",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "VPC Service Controls",
+      "status": "recommended",
+      "purpose": "Isolates the payment, PII and identity projects to keep PCI DSS scope small and prevent data exfiltration."
+    },
+    {
+      "id": "cloud_monitoring",
+      "label": "Monitoring & Alerting",
+      "layer": "operations",
+      "kind": "cloud_service",
+      "technology": "Cloud Monitoring",
+      "status": "required",
+      "purpose": "SLO dashboards (99.95% availability, dispatch p95 under 3 s) with burn-rate alerts and exemplars."
+    },
+    {
+      "id": "cloud_logging",
+      "label": "Centralized & Audit Logs",
+      "layer": "operations",
+      "kind": "cloud_service",
+      "technology": "Cloud Logging",
+      "status": "required",
+      "purpose": "Japan-pinned, retention-locked application, audit and security logs, correlated by trace ID."
+    },
+    {
+      "id": "cloud_trace",
+      "label": "Distributed Tracing",
+      "layer": "operations",
+      "kind": "cloud_service",
+      "technology": "Cloud Trace, OpenTelemetry",
+      "status": "recommended",
+      "purpose": "End-to-end traces across gRPC, HTTP, WebSocket and Pub/Sub, with PII redacted at the Collector."
+    },
+    {
+      "id": "cicd",
+      "label": "CI/CD & IaC",
+      "layer": "operations",
+      "kind": "cloud_service",
+      "technology": "Cloud Build, Artifact Registry, Terraform",
+      "status": "required",
+      "purpose": "Builds and signs images, deploys progressively per region, and keeps the Tokyo and Osaka stacks identical as code."
+    },
+    {
+      "id": "quality_gates",
+      "label": "Quality & Load Testing",
+      "layer": "operations",
+      "kind": "proposed",
+      "technology": "k6, Playwright, axe-core, Lighthouse, OWASP ZAP",
+      "status": "recommended",
+      "purpose": "Release gates for peak load, end-to-end and accessibility checks, performance budgets and DAST security testing."
+    }
+  ],
+  "flows": [
+    {
+      "name": "Ride booking and dispatch request",
+      "kind": "request",
+      "steps": [
+        {
+          "source": "rider",
+          "target": "rider_app",
+          "label": "Set pickup and destination"
+        },
+        {
+          "source": "rider_app",
+          "target": "global_edge",
+          "label": "HTTPS request with JWT"
+        },
+        {
+          "source": "global_edge",
+          "target": "api_gateway",
+          "label": "WAF-filtered request"
+        },
+        {
+          "source": "api_gateway",
+          "target": "business_services",
+          "label": "Idempotent booking request"
+        },
+        {
+          "source": "business_services",
+          "target": "maps_provider",
+          "label": "Route and fare estimate"
+        },
+        {
+          "source": "business_services",
+          "target": "dispatch_location",
+          "label": "Match request (gRPC)"
+        },
+        {
+          "source": "dispatch_location",
+          "target": "memorystore",
+          "label": "GEOSEARCH nearby taxis"
+        },
+        {
+          "source": "dispatch_location",
+          "target": "spanner",
+          "label": "Commit driver assignment"
+        },
+        {
+          "source": "api_gateway",
+          "target": "rider_app",
+          "label": "Driver and ETA (WebSocket)"
+        },
+        {
+          "source": "rider_app",
+          "target": "rider",
+          "label": "Show assigned taxi"
+        }
+      ]
+    }
+  ],
+  "requirement_mapping": [
+    {
+      "requirement": "Rider registration and login (phone/SMS, email, Apple/Google, LINE login)",
+      "components": [
+        "rider_app",
+        "keycloak_ciam",
+        "social_login",
+        "messaging_providers",
+        "business_services",
+        "cloud_sql"
+      ]
+    },
+    {
+      "requirement": "Pickup and destination input with map, address search in Japanese and English",
+      "components": [
+        "rider_app",
+        "maps_provider",
+        "business_services"
+      ]
+    },
+    {
+      "requirement": "Fare estimate before booking, including metered fares, fixed/pre-determined fares and surcharges such as late-night or pickup fees",
+      "components": [
+        "rider_app",
+        "business_services",
+        "maps_provider",
+        "memorystore",
+        "spanner"
+      ]
+    },
+    {
+      "requirement": "Real-time dispatch matching riders to nearest available taxis",
+      "components": [
+        "dispatch_location",
+        "memorystore",
+        "spanner",
+        "driver_app",
+        "gke"
+      ]
+    },
+    {
+      "requirement": "Live driver location tracking and ETA for riders",
+      "components": [
+        "driver_app",
+        "dispatch_location",
+        "memorystore",
+        "api_gateway",
+        "rider_app"
+      ]
+    },
+    {
+      "requirement": "In-app chat/call between rider and driver with masked phone numbers",
+      "components": [
+        "rider_app",
+        "driver_app",
+        "business_services",
+        "messaging_providers",
+        "spanner"
+      ]
+    },
+    {
+      "requirement": "Scheduled/advance reservations",
+      "components": [
+        "rider_app",
+        "business_services",
+        "spanner",
+        "messaging_providers"
+      ]
+    },
+    {
+      "requirement": "Multiple payment methods: credit cards, Apple Pay/Google Pay, QR payments (PayPay, d\u6255\u3044, etc.), IC cards where supported, corporate billing and cash",
+      "components": [
+        "rider_app",
+        "payment_invoice",
+        "payment_providers",
+        "partner_adapter",
+        "spanner"
+      ]
+    },
+    {
+      "requirement": "Digital receipts compliant with Japanese invoice rules (qualified invoice system)",
+      "components": [
+        "payment_invoice",
+        "spanner",
+        "cloud_storage"
+      ]
+    },
+    {
+      "requirement": "Driver app: go online/offline, accept/decline requests, turn-by-turn navigation, earnings view",
+      "components": [
+        "driver_app",
+        "dispatch_location",
+        "business_services",
+        "maps_provider"
+      ]
+    },
+    {
+      "requirement": "Integration with taxi meters / fleet dispatch systems of partner taxi companies",
+      "components": [
+        "partner_adapter",
+        "partner_taxi_systems",
+        "pubsub_dataflow"
+      ]
+    },
+    {
+      "requirement": "Ratings, feedback and lost-item reporting",
+      "components": [
+        "rider_app",
+        "business_services",
+        "spanner",
+        "cloud_sql"
+      ]
+    },
+    {
+      "requirement": "Ride history and favorite places",
+      "components": [
+        "rider_app",
+        "business_services",
+        "spanner"
+      ]
+    },
+    {
+      "requirement": "Push notifications and SMS alerts",
+      "components": [
+        "business_services",
+        "pubsub_dataflow",
+        "messaging_providers"
+      ]
+    },
+    {
+      "requirement": "Multilingual UI (Japanese primary, English, Chinese, Korean for tourists)",
+      "components": [
+        "rider_app",
+        "driver_app",
+        "admin_console",
+        "api_gateway"
+      ]
+    },
+    {
+      "requirement": "Admin console for driver onboarding, fleet management, pricing configuration, promotions/coupons, support tickets and analytics",
+      "components": [
+        "admin_console",
+        "keycloak_ciam",
+        "api_gateway",
+        "business_services",
+        "cloud_sql",
+        "bigquery"
+      ]
+    },
+    {
+      "requirement": "Safety features: emergency contact, trip sharing",
+      "components": [
+        "rider_app",
+        "business_services",
+        "messaging_providers",
+        "admin_support"
+      ]
+    },
+    {
+      "requirement": "High availability (target 99.95% or higher) for booking and dispatch paths",
+      "components": [
+        "global_edge",
+        "gke",
+        "cloud_run",
+        "spanner",
+        "memorystore"
+      ]
+    },
+    {
+      "requirement": "Low latency: dispatch matching within a few seconds; location updates every 3-5 seconds",
+      "components": [
+        "dispatch_location",
+        "memorystore",
+        "gke",
+        "driver_app",
+        "pubsub_dataflow"
+      ]
+    },
+    {
+      "requirement": "Horizontal scalability to handle peak demand (rush hours, rain, events, New Year)",
+      "components": [
+        "gke",
+        "cloud_run",
+        "spanner",
+        "memorystore",
+        "pubsub_dataflow"
+      ]
+    },
+    {
+      "requirement": "Disaster recovery across regions given earthquake risk (e.g., Tokyo and Osaka regions), with defined RPO/RTO",
+      "components": [
+        "spanner",
+        "cloud_sql",
+        "cloud_storage",
+        "global_edge",
+        "gke"
+      ]
+    },
+    {
+      "requirement": "Data residency in Japan",
+      "components": [
+        "iam",
+        "keycloak_ciam",
+        "spanner",
+        "cloud_kms",
+        "messaging_providers"
+      ]
+    },
+    {
+      "requirement": "Strong security: encryption in transit and at rest, PCI DSS-scoped payment handling via tokenization",
+      "components": [
+        "payment_providers",
+        "payment_invoice",
+        "cloud_kms",
+        "vpc_service_controls",
+        "cloud_armor"
+      ]
+    },
+    {
+      "requirement": "Observability: centralized logging, metrics, tracing and alerting",
+      "components": [
+        "cloud_logging",
+        "cloud_monitoring",
+        "cloud_trace"
+      ]
+    },
+    {
+      "requirement": "Mobile apps performant on a range of devices and resilient to poor connectivity",
+      "components": [
+        "rider_app",
+        "driver_app",
+        "api_gateway",
+        "quality_gates"
+      ]
+    },
+    {
+      "requirement": "Accessibility support and localization quality",
+      "components": [
+        "rider_app",
+        "driver_app",
+        "admin_console",
+        "quality_gates"
+      ]
+    }
+  ],
+  "unmapped": [],
+  "assumptions": [
+    "GCP is the selected provider, using only asia-northeast1 (Tokyo, primary) and asia-northeast2 (Osaka, warm standby).",
+    "The Spanner topology is a pre-production decision gate. Option A, a Japan-only dual-region configuration, is the target if verified; otherwise Option B, regional Tokyo plus an Osaka standby, applies. The standard asia1 configuration is rejected because of its Seoul witness replica.",
+    "Keycloak on GKE replaces Identity Platform as the identity service so that identity data stays in Japan, and a Japan-resident SMS and telephony provider is available under a DPA.",
+    "React Native is confirmed for both mobile apps, subject to a Phase 0 spike that validates the PayPay, d\u6255\u3044, IC/NFC and gateway tokenization SDKs.",
+    "Final fare authority rests with the partner meter or the approved fixed-fare calculation. IC card payments are recorded through the meter integration.",
+    "Rollout is phased, starting in Tokyo and then extending to Osaka and Nagoya. Console static assets are served through Cloud CDN, and dynamic rendering stays in Japan regions."
+  ],
+  "technology_stack": [
+    {
+      "layer": "application",
+      "technology": "React Native",
+      "purpose": "Rider and driver apps for iOS and Android from one TypeScript monorepo, with native payment and location modules",
+      "status": "required"
+    },
+    {
+      "layer": "application",
+      "technology": "Next.js",
+      "purpose": "Role-based admin, operator and support console",
+      "status": "required"
+    },
+    {
+      "layer": "application",
+      "technology": "shadcn/ui, Radix UI, Tailwind CSS",
+      "purpose": "Accessible console component library driven by tokens shared with mobile",
+      "status": "recommended"
+    },
+    {
+      "layer": "application",
+      "technology": "TanStack Query, Zustand",
+      "purpose": "Server-state caching, offline mutation queueing and high-frequency map state",
+      "status": "recommended"
+    },
+    {
+      "layer": "application",
+      "technology": "Keycloak",
+      "purpose": "Japan-hosted identity for customers and staff using OpenID Connect, OAuth 2.0 with PKCE and JWT",
+      "status": "required"
+    },
+    {
+      "layer": "api",
+      "technology": "NestJS",
+      "purpose": "BFFs and business, payment and invoice microservices",
+      "status": "recommended"
+    },
+    {
+      "layer": "api",
+      "technology": "Go",
+      "purpose": "Latency-critical dispatch, location ingest and partner adapter",
+      "status": "recommended"
+    },
+    {
+      "layer": "api",
+      "technology": "REST, OpenAPI, gRPC",
+      "purpose": "Contract-first external APIs, plus internal calls and streaming location ingestion",
+      "status": "recommended"
+    },
+    {
+      "layer": "data",
+      "technology": "Spanner",
+      "purpose": "System of record for booking, dispatch, payments and invoices",
+      "status": "required"
+    },
+    {
+      "layer": "data",
+      "technology": "Memorystore",
+      "purpose": "Redis geo-index, offer locks and hot caches",
+      "status": "required"
+    },
+    {
+      "layer": "data",
+      "technology": "Cloud SQL",
+      "purpose": "Back-office workflows and the Keycloak identity store",
+      "status": "recommended"
+    },
+    {
+      "layer": "data",
+      "technology": "BigQuery",
+      "purpose": "Analytics and regulatory reporting",
+      "status": "required"
+    },
+    {
+      "layer": "data",
+      "technology": "Cloud Storage",
+      "purpose": "Invoices, documents and retention-locked archives",
+      "status": "required"
+    },
+    {
+      "layer": "integrations",
+      "technology": "Google Maps Platform / Zenrin",
+      "purpose": "Maps, address search, routing and ETA",
+      "status": "required"
+    },
+    {
+      "layer": "integrations",
+      "technology": "PayPay, d\u6255\u3044, Apple Pay, Google Pay, Japan PCI DSS PSP",
+      "purpose": "Japanese payment methods and card tokenization",
+      "status": "required"
+    },
+    {
+      "layer": "integrations",
+      "technology": "LINE Login, Sign in with Apple, Google",
+      "purpose": "Social login federation",
+      "status": "required"
+    },
+    {
+      "layer": "integrations",
+      "technology": "APNs, FCM, Japan SMS/telephony provider",
+      "purpose": "Push notifications, SMS and masked calling",
+      "status": "required"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "GKE",
+      "purpose": "Streaming and latency-critical workloads and Keycloak",
+      "status": "required"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "Cloud Run",
+      "purpose": "Stateless request/response services in both regions",
+      "status": "recommended"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "Cloud Load Balancing, Cloud CDN",
+      "purpose": "Global entry point, regional failover and static asset caching",
+      "status": "required"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "Pub/Sub, Dataflow",
+      "purpose": "Event backbone, streaming ETL and Option B replication",
+      "status": "required"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "VPC",
+      "purpose": "Private networking and controlled egress",
+      "status": "required"
+    },
+    {
+      "layer": "security",
+      "technology": "Cloud Armor",
+      "purpose": "WAF, DDoS protection and rate limiting",
+      "status": "required"
+    },
+    {
+      "layer": "security",
+      "technology": "IAM",
+      "purpose": "Least privilege, Workload Identity and location Org Policies",
+      "status": "required"
+    },
+    {
+      "layer": "security",
+      "technology": "Cloud KMS",
+      "purpose": "CMEK and per-user PII encryption",
+      "status": "required"
+    },
+    {
+      "layer": "security",
+      "technology": "Secret Manager",
+      "purpose": "Credential storage and rotation",
+      "status": "required"
+    },
+    {
+      "layer": "security",
+      "technology": "VPC Service Controls",
+      "purpose": "Isolation of the PCI and PII projects",
+      "status": "required"
+    },
+    {
+      "layer": "operations",
+      "technology": "Cloud Monitoring",
+      "purpose": "SLOs, metrics and alerting",
+      "status": "required"
+    },
+    {
+      "layer": "operations",
+      "technology": "Cloud Logging",
+      "purpose": "Centralized and audit logging pinned to Japan",
+      "status": "required"
+    },
+    {
+      "layer": "operations",
+      "technology": "Cloud Trace, OpenTelemetry",
+      "purpose": "Distributed tracing (catalogue exception requested)",
+      "status": "required"
+    },
+    {
+      "layer": "operations",
+      "technology": "Cloud Build, Artifact Registry, Terraform",
+      "purpose": "CI/CD, signed images and infrastructure as code",
+      "status": "required"
+    },
+    {
+      "layer": "operations",
+      "technology": "k6, Playwright, axe-core, Lighthouse, Jest, OWASP ZAP",
+      "purpose": "Load, end-to-end, accessibility, performance, unit and security testing",
+      "status": "recommended"
+    }
+  ],
+  "security_considerations": [
+    "Card data never reaches the platform. Gateway SDK tokenization, EMV 3DS and an isolated payment project behind VPC Service Controls target PCI DSS SAQ A or A-EP.",
+    "Identity, SMS OTP and masked-call data are processed in Japan. A cross-border register covers Apple/Google federation, APNs/FCM and maps, and requires APPI sign-off from the client.",
+    "Data access is enforced at object and tenant level: riders, drivers and operators see only their own data. Staff use MFA and just-in-time elevation, and all admin actions are audit-logged.",
+    "CMEK from Japan Cloud KMS keyrings protects all stores. Application-level encryption of PII and per-user keys support APPI deletion through crypto-shredding.",
+    "Cloud Armor applies stricter policies to login and OTP endpoints, with OTP pumping limits. Mobile apps use App Attest and Play Integrity attestation, certificate pinning and server-side GPS plausibility checks.",
+    "Chat retention is limited to 90 days with restricted access, in line with Telecommunications Business Act secrecy rules. Qualified-invoice receipts are kept in write-once storage for 7 years."
+  ],
+  "scalability_considerations": [
+    "Dispatch and location state is partitioned by city and geo-cell across sharded Memorystore and Go workers on GKE, with HPA driven by connection count and Pub/Sub backlog.",
+    "Locations are written to Redis first and persisted asynchronously through Pub/Sub, so ingest of 30-60k updates/s never blocks on durable storage.",
+    "Spanner processing-unit autoscaling, plus serving rate cards and driver eligibility from cache, absorbs New Year and rain peaks.",
+    "Capacity is pre-scaled on a schedule for rush hours and events, with 30-50% headroom on the dispatch tier and Cloud Run minimum instances on the booking path.",
+    "Before each metro launch, k6 tests run at 2x projected peak along with soak tests. Degraded modes use cached fares and straight-line ETAs if maps or pricing services fail.",
+    "Osaka runs as a reduced-footprint warm standby with reserved quotas and scales out on failover, which is rehearsed in game days twice a year."
+  ],
+  "future_enhancements": [
+    "ML demand forecasting and driver repositioning recommendations built on the BigQuery trip history.",
+    "Dynamic pricing models within MLIT fare rules and operator approval.",
+    "Inclusion of 'Japan Ride Share' licensed schemes if regulation and partner operators allow.",
+    "AI-assisted multilingual support chat and automatic translation between riders and drivers.",
+    "More QR wallets, a corporate travel-management integration and expansion to further prefectures.",
+    "Wheelchair-accessible/UD taxi matching and accessibility-aware pickup guidance."
+  ]
+}
