@@ -29,11 +29,11 @@ def _instruction(ctx: ReadonlyContext) -> str:
     )
 
 
-def build_architect() -> LlmAgent:
+def build_architect(provider: str | None = None) -> LlmAgent:
     return LlmAgent(
         name="architect",
         description="Builds the high-level solution architecture and data flows.",
-        model=strong_model(),
+        model=strong_model(provider),
         instruction=_instruction,
         output_schema=ArchitectureOutput,
         output_key="architecture",

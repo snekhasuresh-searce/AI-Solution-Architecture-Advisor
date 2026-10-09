@@ -1,0 +1,279 @@
+{
+  "title": "SaaS Invoice Management Application",
+  "overview": "A fullstack SaaS application built with React, Node.js, and PostgreSQL that provides small businesses with invoice management capabilities and secure user authentication. It features a responsive user interface and robust cloud hosting on Google Cloud.",
+  "cloud_provider": "Google Cloud",
+  "nodes": [
+    {
+      "id": "small_business_owner",
+      "label": "Small Business Owner",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "Creates, views, and tracks invoices for their business operations."
+    },
+    {
+      "id": "billing_admin",
+      "label": "Billing Administrator",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "Manages user accounts and performs administrative invoice duties."
+    },
+    {
+      "id": "react_frontend",
+      "label": "React Frontend",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "React",
+      "status": "required",
+      "purpose": "Provides a responsive user interface for invoice management and user authentication."
+    },
+    {
+      "id": "auth_module",
+      "label": "Authentication Module",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "JWT",
+      "status": "required",
+      "purpose": "Manages user login, registration, and stateless session tokens."
+    },
+    {
+      "id": "nodejs_api",
+      "label": "Node.js Backend API",
+      "layer": "api",
+      "kind": "proposed",
+      "technology": "Node.js",
+      "status": "required",
+      "purpose": "Handles business logic, invoice CRUD operations, and request validation."
+    },
+    {
+      "id": "postgresql_db",
+      "label": "PostgreSQL Database",
+      "layer": "data",
+      "kind": "data_store",
+      "technology": "PostgreSQL",
+      "status": "required",
+      "purpose": "Persists user accounts, session data, and invoice records securely with ACID guarantees."
+    },
+    {
+      "id": "firebase_hosting",
+      "label": "Firebase Hosting",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "Firebase Hosting",
+      "status": "recommended",
+      "purpose": "Delivers the React static frontend globally with low latency."
+    },
+    {
+      "id": "cloud_run",
+      "label": "Cloud Run Container",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "Cloud Run",
+      "status": "required",
+      "purpose": "Hosts the Node.js backend container with auto-scaling capabilities."
+    },
+    {
+      "id": "cloud_sql",
+      "label": "Cloud SQL Database",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "Cloud SQL",
+      "status": "required",
+      "purpose": "Managed PostgreSQL service providing automated backups and relational storage."
+    },
+    {
+      "id": "secret_manager",
+      "label": "Secret Manager",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "Secret Manager",
+      "status": "recommended",
+      "purpose": "Securely stores database credentials and JWT signing keys at rest."
+    }
+  ],
+  "flows": [
+    {
+      "name": "Invoice Management Flow",
+      "kind": "request",
+      "steps": [
+        {
+          "source": "small_business_owner",
+          "target": "react_frontend",
+          "label": "Interact with UI"
+        },
+        {
+          "source": "react_frontend",
+          "target": "auth_module",
+          "label": "Include JWT Token"
+        },
+        {
+          "source": "react_frontend",
+          "target": "nodejs_api",
+          "label": "HTTPS REST Request"
+        },
+        {
+          "source": "nodejs_api",
+          "target": "postgresql_db",
+          "label": "Parameterized SQL Query"
+        },
+        {
+          "source": "postgresql_db",
+          "target": "nodejs_api",
+          "label": "Return Query Result"
+        },
+        {
+          "source": "nodejs_api",
+          "target": "react_frontend",
+          "label": "JSON Response"
+        },
+        {
+          "source": "react_frontend",
+          "target": "small_business_owner",
+          "label": "Render Updated View"
+        }
+      ]
+    }
+  ],
+  "requirement_mapping": [
+    {
+      "requirement": "Users must be able to sign up and log in securely.",
+      "components": [
+        "react_frontend",
+        "auth_module",
+        "nodejs_api",
+        "postgresql_db"
+      ]
+    },
+    {
+      "requirement": "Users can create and save new invoices with line items.",
+      "components": [
+        "react_frontend",
+        "nodejs_api",
+        "postgresql_db"
+      ]
+    },
+    {
+      "requirement": "Users can view a list of all past and pending invoices.",
+      "components": [
+        "react_frontend",
+        "nodejs_api",
+        "postgresql_db"
+      ]
+    },
+    {
+      "requirement": "System must persist data in a PostgreSQL database.",
+      "components": [
+        "postgresql_db",
+        "cloud_sql"
+      ]
+    },
+    {
+      "requirement": "Responsive design for desktop and tablet users",
+      "components": [
+        "react_frontend",
+        "firebase_hosting"
+      ]
+    },
+    {
+      "requirement": "Secure password hashing and session management",
+      "components": [
+        "auth_module",
+        "nodejs_api",
+        "secret_manager"
+      ]
+    }
+  ],
+  "unmapped": [],
+  "assumptions": [
+    "Standard cloud hosting infrastructure on Google Cloud will be utilized.",
+    "Email service for password recovery will be integrated externally.",
+    "Initial scale remains low to medium, fitting within single-region Cloud Run and Cloud SQL limits."
+  ],
+  "technology_stack": [
+    {
+      "layer": "application",
+      "technology": "React",
+      "purpose": "Frontend UI framework",
+      "status": "required"
+    },
+    {
+      "layer": "application",
+      "technology": "Tailwind CSS",
+      "purpose": "Utility-first CSS styling",
+      "status": "recommended"
+    },
+    {
+      "layer": "application",
+      "technology": "TanStack Query",
+      "purpose": "Server state management and caching",
+      "status": "recommended"
+    },
+    {
+      "layer": "api",
+      "technology": "Node.js",
+      "purpose": "Backend runtime environment",
+      "status": "required"
+    },
+    {
+      "layer": "api",
+      "technology": "Express",
+      "purpose": "REST API routing framework",
+      "status": "recommended"
+    },
+    {
+      "layer": "data",
+      "technology": "PostgreSQL",
+      "purpose": "Relational data store for invoices and users",
+      "status": "required"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "Cloud Run",
+      "purpose": "Serverless container compute platform",
+      "status": "required"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "Cloud SQL",
+      "purpose": "Managed PostgreSQL database service",
+      "status": "required"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "Firebase Hosting",
+      "purpose": "Static asset CDN hosting",
+      "status": "recommended"
+    },
+    {
+      "layer": "security",
+      "technology": "JWT",
+      "purpose": "Stateless session authentication",
+      "status": "required"
+    },
+    {
+      "layer": "security",
+      "technology": "Secret Manager",
+      "purpose": "Encrypted credential storage",
+      "status": "recommended"
+    }
+  ],
+  "security_considerations": [
+    "Enforce HTTPS across all frontend and backend endpoints for secure data in transit.",
+    "Hash all user passwords using bcrypt prior to storing them in PostgreSQL.",
+    "Use parameterized queries to prevent SQL injection vulnerabilities.",
+    "Implement strict CORS policies and tenant-level authorization checks to protect invoice data."
+  ],
+  "scalability_considerations": [
+    "Cloud Run automatically scales the Node.js backend containers up and down based on incoming traffic.",
+    "Connection pooling is utilized in the backend to manage PostgreSQL connection limits efficiently.",
+    "Pagination and cursor-based loading are implemented for large invoice history tables."
+  ],
+  "future_enhancements": [
+    "Direct payment gateway integrations for online invoice settlement.",
+    "Automated multi-currency and complex tax calculation engines.",
+    "Export capabilities for accounting software integrations."
+  ]
+}

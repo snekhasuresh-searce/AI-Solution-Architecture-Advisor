@@ -47,6 +47,11 @@ class Settings:
     ollama_strong: str = os.getenv("OLLAMA_STRONG_MODEL", "ollama_chat/qwen2.5:14b")
     ollama_fast: str = os.getenv("OLLAMA_FAST_MODEL", "ollama_chat/qwen2.5:7b")
 
+    # Monthly token budgets (0 = unset). The providers' APIs do not expose an account balance, so the
+    # "remaining" figure in the web app is budget minus the tokens this app has used this month.
+    gemini_token_budget: int = _int("GEMINI_TOKEN_BUDGET", 0)
+    claude_token_budget: int = _int("CLAUDE_TOKEN_BUDGET", 0)
+
     max_rework_rounds: int = _int("ADVISOR_MAX_REWORK_ROUNDS", 3)
     approval_overall: int = _int("ADVISOR_APPROVAL_OVERALL", 80)
     approval_requirement_fit: int = _int("ADVISOR_APPROVAL_REQUIREMENT_FIT", 85)

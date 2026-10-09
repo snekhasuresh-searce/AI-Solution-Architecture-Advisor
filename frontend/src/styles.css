@@ -491,3 +491,34 @@ a.btn.primary { color: var(--on-accent); }
 @media (max-width: 520px) { .menu { width: min(260px, calc(100vw - 32px)); } }
 /* On phones the profile button sits at the left of its row, so the menu opens left-aligned. */
 @media (max-width: 560px) { .menu { left: 0; right: auto; } }
+
+/* ------------------------------------------------------- model + usage */
+.badges { align-items: center; }
+.model-menu { position: relative; }
+.model-trigger { background: var(--surface); cursor: pointer; }
+.model-trigger:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+.model-trigger:disabled { cursor: not-allowed; opacity: 0.6; }
+.model-list {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 230px;
+  margin: 0; padding: 4px; list-style: none;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(16 24 40 / 0.18);
+}
+.model-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%;
+  padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text);
+  text-align: left; cursor: pointer; font: inherit;
+}
+.model-option:hover:not(:disabled) { background: var(--surface-2); }
+.model-option.active { background: var(--accent-soft); }
+.model-option:disabled { opacity: 0.55; cursor: not-allowed; }
+.token-meter { display: inline-flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); min-width: 120px; }
+.token-meter strong { color: var(--text); font-weight: 650; }
+.meter-bar { display: block; height: 4px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.meter-fill { display: block; height: 100%; border-radius: 999px; transition: width 0.3s; }
+.meter-fill.meter-ok { background: var(--ok); }
+.meter-fill.meter-warn { background: var(--warn); }
+.meter-fill.meter-danger { background: var(--danger); }
+strong.meter-warn { color: var(--warn); }
+strong.meter-danger { color: var(--danger); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

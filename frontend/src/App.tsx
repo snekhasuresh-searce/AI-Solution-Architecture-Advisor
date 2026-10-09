@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { api, ApiError, authApi, type AdvisorEvent, type AuthConfig, type Health, type RunSummary, type Scenario, type User } from "./api";
+import { api, ApiError, authApi, type AdvisorEvent, type AuthConfig, type Health, type ModelsInfo, type ModelUsage, type RunSummary, type Scenario, type User } from "./api";
 import { Activity } from "./components/Activity";
 import { AdminUsers } from "./components/AdminUsers";
 import { BrandLockup } from "./components/Brand";
 import { Composer } from "./components/Composer";
 import { Icon } from "./components/Icon";
+import { ModelMenu } from "./components/ModelMenu";
 import { Pipeline } from "./components/Pipeline";
 import { ReportView } from "./components/ReportView";
 import { LoginPage } from "./components/LoginPage";
 import { RunHistory } from "./components/RunHistory";
+import { UsageMeter } from "./components/UsageMeter";
 import { UsageView } from "./components/UsageView";
 import { UserMenu } from "./components/UserMenu";
 import { initialState, reducer } from "./state";
 import { useToast } from "./toast";
 
+const PROVIDER_KEY = "advisor.provider";
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 const isSignedOut = (err: unknown) => err instanceof ApiError && err.status === 401;
 
@@ -41,6 +44,10 @@ export default function App() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [runsError, setRunsError] = useState<string | null>(null);
+  const [models, setModels] = useState<ModelsInfo | null>(null);
+  const [provider, setProvider] = useState<string | null>(() => localStorage.getItem(PROVIDER_KEY));
+  const [modelUsage, setModelUsage] = useState<ModelUsage | null>(null);
+  const [live, setLive] = useState({ input: 0, output: 0 });
   const reportRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
 
@@ -72,8 +79,28 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     api.scenarios().then(setScenarios).catch(() => {});
+    api.models().then(setModels).catch(() => {});
     refreshRuns();
   }, [user, refreshRuns]);
+
+  const refreshUsage = useCallback(() => {
+    api.modelUsage().then((u) => { setModelUsage(u); setLive({ input: 0, output: 0 }); }).catch(() => {});
+  }, []);
+  useEffect(() => { if (user) refreshUsage(); }, [user, refreshUsage]);
+
+  // The model for the next run: the saved choice if still offered and usable, else the server default.
+  const usable = models?.providers.filter((p) => p.configured) ?? [];
+  const activeProvider = usable.find((p) => p.id === provider)?.id ?? usable.find((p) => p.id === models?.default)?.id
+    ?? usable[0]?.id ?? models?.default ?? health?.provider ?? "";
+
+  const chooseProvider = (id: string) => {
+    if (id === activeProvider) return;
+    if (state.sessionId && state.log.length > 0 &&
+        !window.confirm("Switching model starts a new conversation. The current one will be cleared. Continue?")) return;
+    localStorage.setItem(PROVIDER_KEY, id);
+    setProvider(id);
+    dispatch({ type: "reset" }); // a conversation belongs to one model
+  };
 
   // Bring a newly produced (or newly opened) report into view.
   useEffect(() => {
@@ -85,11 +112,12 @@ export default function App() {
     try {
       let sessionId = state.sessionId;
       if (!sessionId) {
-        sessionId = await api.createSession();
+        sessionId = await api.createSession(activeProvider);
         dispatch({ type: "session", id: sessionId });
       }
       const handle = (event: AdvisorEvent) => {
         dispatch({ type: "event", event });
+        if (event.type === "usage") setLive({ input: event.input, output: event.output });
         if (event.type === "report") {
           if (event.status === "APPROVED") {
             toast.success("Recommendation ready", { message: "Approved by the reviewer. Export it to DOCX or PDF." });
@@ -105,7 +133,7 @@ export default function App() {
       } catch (err) {
         if (!(err instanceof ApiError && err.status === 404)) throw err;
         // The conversation is gone (e.g. deleted): continue in a fresh one.
-        sessionId = await api.createSession();
+        sessionId = await api.createSession(activeProvider);
         dispatch({ type: "session", id: sessionId });
         toast.info("Started a new conversation", { message: "The previous one was not found." });
         for await (const event of api.send(sessionId, text)) handle(event);
@@ -118,6 +146,7 @@ export default function App() {
     } finally {
       dispatch({ type: "finish" });
       refreshRuns();
+      refreshUsage();
     }
   };
 
@@ -182,7 +211,13 @@ export default function App() {
         <div className="topbar-right">
           {health && (
             <span className="badges">
-              <span className="badge" title="ADVISOR_PROVIDER">model: {health.provider}</span>
+              {models && usable.length > 0 ? (
+                <ModelMenu providers={models.providers} selected={activeProvider} disabled={state.busy}
+                           onSelect={chooseProvider} />
+              ) : (
+                <span className="badge" title="ADVISOR_PROVIDER">model: {health.provider}</span>
+              )}
+              <UsageMeter provider={activeProvider} usage={modelUsage?.providers[activeProvider]} live={live} />
               <span className="badge" title="Run log storage">log: {health.database}</span>
             </span>
           )}

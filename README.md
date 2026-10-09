@@ -48,6 +48,11 @@ pytest                               # unit + end-to-end tests (mock model)
 adk web .                            # ADK's debug chat UI -> pick "advisor"
 ```
 
+The model badge in the top bar is a menu: pick **Gemini** or **Claude** for the next run (needs
+`GOOGLE_API_KEY` / `ANTHROPIC_API_KEY` in `backend/.env`; a provider without a key is greyed out). Switching
+starts a new conversation. Next to it, the token meter shows tokens used this month for the selected model; set
+`GEMINI_TOKEN_BUDGET` / `CLAUDE_TOKEN_BUDGET` in `backend/.env` to also see what is left of your allowance.
+
 Exports also work from the command line: `python scripts/export.py <run_id> [--format docx|pdf]`.
 
 ## Frontend quick start
