@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api, apiUrl, type ExportFormat } from "../api";
 import type { Report } from "../state";
+import { useToast } from "../toast";
 import { Icon, Spinner } from "./Icon";
 import { TracePanel } from "./TracePanel";
 
@@ -24,16 +25,15 @@ async function download(runId: string, format: ExportFormat): Promise<void> {
 
 export function ReportView({ report }: { report: Report }) {
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const toast = useToast();
 
   const exportAs = async (format: ExportFormat) => {
     setExporting(format);
-    setError(null);
     try {
       await download(report.runId, format);
+      toast.success(`Exported to ${format.toUpperCase()}`, { message: `recommendation_${report.runId}.${format}` });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toast.error(`${format.toUpperCase()} export failed`, { message: err instanceof Error ? err.message : String(err) });
     } finally {
       setExporting(null);
     }
@@ -42,10 +42,9 @@ export function ReportView({ report }: { report: Report }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(report.markdown);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      toast.success("Copied as Markdown", { message: "Paste it into any Markdown editor or doc." });
     } catch {
-      setError("Copy failed: the browser blocked clipboard access.");
+      toast.error("Copy failed", { message: "The browser blocked clipboard access." });
     }
   };
 
@@ -72,11 +71,10 @@ export function ReportView({ report }: { report: Report }) {
             </a>
           )}
           <button type="button" className="btn ghost" onClick={copy} title="Copy the report as Markdown">
-            <Icon name={copied ? "check" : "copy"} /> {copied ? "Copied" : "Markdown"}
+            <Icon name="copy" /> Markdown
           </button>
         </div>
       </header>
-      {error && <p className="inline-error"><Icon name="alert" size={14} /> {error}</p>}
       <TracePanel runId={report.runId} />
       <article className="markdown">
         <Markdown

@@ -1,4 +1,6 @@
-# AI Solution Architecture Advisor — POC boilerplate
+<img src="brand/nexora-logo.png" width="220" alt="Nexora">
+
+# Nexora — AI solution architecture advisor
 
 A multi-agent advisor that turns a plain-language requirement into a reviewed
 solution recommendation. Built with Google's Agent Development Kit (ADK) and
@@ -10,6 +12,13 @@ requirement ─► Analyzer ─► Agent Selector ─► Specialists (parallel) 
                   └─ clarifying questions          └──── rework (High/Critical) ┘  max 3 rounds, then escalate
 ```
 
+## Brand
+
+The product name is **Nexora**, with the descriptor "AI solution architecture advisor".
+Logo files are in [`brand/`](brand/): the original (`nexora-original.png`), the full logo,
+the N mark, and the wordmark with a dark-theme variant (its navy letters lightened).
+Client documents keep the Searce logo; Nexora appears as a small credit.
+
 ## Repository layout
 
 Two independent projects:
@@ -18,6 +27,7 @@ Two independent projects:
 backend/     Python API + agents (FastAPI, Google ADK) - its own venv, .env, Dockerfile
 frontend/    React + TypeScript web app (Vite)        - its own package.json, Dockerfile
 docker-compose.yml   runs both together
+brand/       Nexora logo artwork (original, mark, wordmark, dark variant)
 ```
 
 The frontend talks to the backend only over HTTP (`/api/...`), so each can be

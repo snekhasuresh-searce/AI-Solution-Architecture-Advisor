@@ -18,6 +18,9 @@ from pathlib import Path
 
 # ------------------------------------------------------------------ branding
 LOGO = Path(__file__).parent / "assets" / "searce_logo.png"
+# Product credit in the header's right corner (the Searce logo stays the main mark on client documents).
+PRODUCT_MARK = Path(__file__).parent / "assets" / "nexora_mark.png"
+PRODUCT_CREDIT = "Nexora · AI solution architecture advisor"
 # Google Sans is not freely redistributable: Word uses it when installed on the reader's machine, and the
 # PDF embeds it when the TTFs are in advisor/assets/fonts (or installed); otherwise a fallback font is used.
 FONT = "Google Sans"
@@ -201,6 +204,10 @@ def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
         head.paragraph_format.tab_stops.add_tab_stop(width, WD_TAB_ALIGNMENT.RIGHT)
         height = Inches(0.42)
         head.add_run().add_picture(str(LOGO), height=height)
+        head.add_run("\t")
+        head.add_run().add_picture(str(PRODUCT_MARK), height=Inches(0.2))
+        credit = head.add_run(" " + PRODUCT_CREDIT)
+        credit.font.size, credit.font.color.rgb = Pt(8.5), RGBColor(0x59, 0x63, 0x6E)
         border(head, "bottom")
         foot = section.footer.paragraphs[0]
         foot.text = ""
@@ -440,6 +447,14 @@ def to_pdf(markdown: str, architecture: dict | None = None) -> bytes:
         canvas.saveState()
         canvas.drawImage(str(LOGO), margin, h - 8 * mm - logo_h, width=logo_h * _logo_aspect(), height=logo_h,
                          mask="auto")
+        # Product credit, right-aligned on the logo's centre line.
+        canvas.setFont(regular, 8)
+        canvas.setFillColor(muted)
+        mid = h - 8 * mm - logo_h / 2
+        canvas.drawRightString(w - margin, mid - 1 * mm, PRODUCT_CREDIT)
+        mark = 4.2 * mm
+        canvas.drawImage(str(PRODUCT_MARK), w - margin - canvas.stringWidth(PRODUCT_CREDIT, regular, 8) - mark - 1.5 * mm,
+                         mid - mark / 2, width=mark, height=mark, mask="auto")
         canvas.setStrokeColor(line)
         canvas.setLineWidth(0.6)
         canvas.line(margin, h - 8 * mm - logo_h - 3 * mm, w - margin, h - 8 * mm - logo_h - 3 * mm)

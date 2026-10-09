@@ -46,7 +46,7 @@ async def run_once(text: str, verbose: bool = False) -> None:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="AI Solution Architecture Advisor - CLI")
+    p = argparse.ArgumentParser(description="Nexora — AI solution architecture advisor (CLI)")
     g = p.add_mutually_exclusive_group(required=True)
     g.add_argument("--text", help="Requirement as free text")
     g.add_argument("--file", help="Requirement as .txt, .md, .pdf or .docx")

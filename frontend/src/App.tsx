@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { api, ApiError, authApi, type AuthConfig, type Health, type RunSummary, type Scenario, type User } from "./api";
+import { api, ApiError, authApi, type AdvisorEvent, type AuthConfig, type Health, type RunSummary, type Scenario, type User } from "./api";
 import { Activity } from "./components/Activity";
 import { AdminUsers } from "./components/AdminUsers";
+import { BrandLockup } from "./components/Brand";
 import { Composer } from "./components/Composer";
 import { Icon } from "./components/Icon";
 import { Pipeline } from "./components/Pipeline";
@@ -11,6 +12,7 @@ import { RunHistory } from "./components/RunHistory";
 import { UsageView } from "./components/UsageView";
 import { UserMenu } from "./components/UserMenu";
 import { initialState, reducer } from "./state";
+import { useToast } from "./toast";
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 const isSignedOut = (err: unknown) => err instanceof ApiError && err.status === 401;
@@ -40,18 +42,21 @@ export default function App() {
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [runsError, setRunsError] = useState<string | null>(null);
   const reportRef = useRef<HTMLDivElement>(null);
+  const toast = useToast();
 
-  const signedOut = useCallback(() => {
+  /** Back to the sign-in page; `expired` when the server rejected the session mid-use. */
+  const signedOut = useCallback((expired = false) => {
+    if (expired) toast.info("Your session has ended", { message: "Sign in again to continue." });
     setUser(null);
     setView("advisor");
     dispatch({ type: "reset" });
     setRuns(null);
-  }, []);
+  }, [toast]);
 
   const refreshRuns = useCallback(() => {
     api.runs()
       .then((r) => { setRuns(r); setRunsError(null); })
-      .catch((err) => (isSignedOut(err) ? signedOut() : setRunsError(message(err))));
+      .catch((err) => (isSignedOut(err) ? signedOut(true) : setRunsError(message(err))));
   }, [signedOut]);
 
   // Who is signed in (the session cookie is HttpOnly, so ask the server).
@@ -83,20 +88,33 @@ export default function App() {
         sessionId = await api.createSession();
         dispatch({ type: "session", id: sessionId });
       }
+      const handle = (event: AdvisorEvent) => {
+        dispatch({ type: "event", event });
+        if (event.type === "report") {
+          if (event.status === "APPROVED") {
+            toast.success("Recommendation ready", { message: "Approved by the reviewer. Export it to DOCX or PDF." });
+          } else {
+            toast.info("Recommendation escalated", { message: "It needs a human architect's review before use." });
+          }
+        } else if (event.type === "error") {
+          toast.error("The run hit an error", { message: event.message });
+        }
+      };
       try {
-        for await (const event of api.send(sessionId, text)) dispatch({ type: "event", event });
+        for await (const event of api.send(sessionId, text)) handle(event);
       } catch (err) {
         if (!(err instanceof ApiError && err.status === 404)) throw err;
         // The conversation is gone (e.g. deleted): continue in a fresh one.
         sessionId = await api.createSession();
         dispatch({ type: "session", id: sessionId });
-        dispatch({ type: "fail", message: "The previous conversation was not found, so this message started a new one." });
-        for await (const event of api.send(sessionId, text)) dispatch({ type: "event", event });
+        toast.info("Started a new conversation", { message: "The previous one was not found." });
+        for await (const event of api.send(sessionId, text)) handle(event);
       }
       setApiDown(false);
     } catch (err) {
-      if (isSignedOut(err)) return signedOut();
+      if (isSignedOut(err)) return signedOut(true);
       dispatch({ type: "fail", message: message(err) });
+      toast.error("The run failed", { message: message(err) });
     } finally {
       dispatch({ type: "finish" });
       refreshRuns();
@@ -108,8 +126,8 @@ export default function App() {
       const { markdown } = await api.report(run.run_id);
       dispatch({ type: "open_report", report: { runId: run.run_id, status: run.status, markdown, live: false } });
     } catch (err) {
-      if (isSignedOut(err)) return signedOut();
-      dispatch({ type: "fail", message: `Could not open run ${run.run_id}: ${message(err)}` });
+      if (isSignedOut(err)) return signedOut(true);
+      toast.error(`Could not open run ${run.run_id}`, { message: message(err) });
     }
   };
 
@@ -121,14 +139,17 @@ export default function App() {
       const status = /\*\*Status:\*\*\s*Escalated/.test(markdown) ? "ESCALATED" : "APPROVED";
       dispatch({ type: "open_report", report: { runId, status, markdown, live: false } });
     } catch (err) {
-      if (isSignedOut(err)) return signedOut();
-      dispatch({ type: "fail", message: `Could not open run ${runId}: ${message(err)}` });
+      if (isSignedOut(err)) return signedOut(true);
+      toast.error(`Could not open run ${runId}`, { message: message(err) });
     }
   };
 
   const signOut = async () => {
     try {
       await authApi.logout();
+      toast.info("Signed out");
+    } catch {
+      toast.info("Signed out on this device", { message: "The server could not be reached to end the session." });
     } finally {
       signedOut();
     }
@@ -157,14 +178,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">
-          <span className="logo" aria-hidden="true">
-            <svg viewBox="0 0 32 32" width="28" height="28"><rect width="32" height="32" rx="8" fill="currentColor" />
-              <path d="M9 22l7-13 7 13M12 17h8" stroke="white" strokeWidth="2.5" fill="none"
-                    strokeLinecap="round" strokeLinejoin="round" /></svg>
-          </span>
-          <span>Solution Architecture Advisor</span>
-        </div>
+        <BrandLockup />
         <div className="topbar-right">
           {health && (
             <span className="badges">

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { authApi, ROLES, type AuthConfig, type Role, type User } from "../api";
+import { NexoraMark, PRODUCT_DESCRIPTOR, Wordmark } from "./Brand";
 import { Icon, Spinner } from "./Icon";
 
 const ERRORS: Record<string, string> = {
@@ -52,12 +53,9 @@ export function LoginPage({ config, error, onSignedIn }: Props) {
   return (
     <div className="login-wrap">
       <section className="card login" aria-labelledby="login-title">
-        <span className="logo login-logo" aria-hidden="true">
-          <svg viewBox="0 0 32 32" width="40" height="40"><rect width="32" height="32" rx="8" fill="currentColor" />
-            <path d="M9 22l7-13 7 13M12 17h8" stroke="white" strokeWidth="2.5" fill="none"
-                  strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </span>
-        <h1 id="login-title">Solution Architecture Advisor</h1>
+        <span className="login-logo"><NexoraMark size={88} /></span>
+        <h1 id="login-title" className="login-wordmark"><Wordmark height={44} /></h1>
+        <p className="login-descriptor">{PRODUCT_DESCRIPTOR}</p>
         <p className="muted">Sign in with your {domain} Google Workspace account.</p>
 
         {error && <p className="inline-error" role="alert"><Icon name="alert" size={14} /> {ERRORS[error] ?? ERRORS.failed}</p>}
