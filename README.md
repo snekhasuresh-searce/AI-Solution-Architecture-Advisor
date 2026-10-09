@@ -37,6 +37,11 @@ uvicorn advisor.api:app --port 8080 --reload
 cd web && npm install && npm run dev       # http://localhost:5173
 ```
 
+The model badge in the top bar is a menu: pick **Gemini** or **Claude** for the next run (needs
+`GOOGLE_API_KEY` / `ANTHROPIC_API_KEY` in `.env`; a provider without a key is greyed out). Switching starts a
+new conversation. Next to it, the token meter shows tokens used this month for the selected model; set
+`GEMINI_TOKEN_BUDGET` / `CLAUDE_TOKEN_BUDGET` in `.env` to also see what is left of your allowance.
+
 For a single server, run `cd web && npm run build` once. `uvicorn advisor.api:app --port 8080`
 then also serves the app at http://localhost:8080. The Dockerfile does this.
 

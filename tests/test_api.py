@@ -80,3 +80,31 @@ def test_bad_requests(client):
     assert client.post("/api/intake", files={"file": ("x.exe", b"MZ")}).status_code == 400
     res = client.post("/api/intake", files={"file": ("req.md", b"# Need\nA REST API")})
     assert res.json() == {"text": "# Need\nA REST API"}
+
+
+def test_models_and_session_provider(client, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    listed = client.get("/api/models").json()
+    assert listed["default"] == "mock"
+    assert [p["id"] for p in listed["providers"]] == ["gemini", "claude", "mock"]
+    assert next(p for p in listed["providers"] if p["id"] == "claude")["configured"] is False
+    # Switching to a provider without a key is refused with a pointer to the setting.
+    res = client.post("/api/sessions", json={"provider": "claude"})
+    assert res.status_code == 400 and "ANTHROPIC_API_KEY" in res.json()["detail"]
+    assert client.post("/api/sessions", json={"provider": "nope"}).status_code == 400
+    assert client.post("/api/sessions", json={"provider": "mock"}).json()["provider"] == "mock"
+
+
+def test_usage_budget_and_remaining(client, monkeypatch):
+    from dataclasses import replace
+
+    from advisor import api, storage
+
+    monkeypatch.setattr(api, "settings", replace(api.settings, claude_token_budget=1000))
+    storage.log_usage("claude", 300, 150)
+    storage.log_usage("claude", 50, 0)
+    claude = client.get("/api/usage").json()["providers"]["claude"]
+    assert (claude["input"], claude["output"], claude["total"]) == (350, 150, 500)
+    assert claude["budget"] == 1000 and claude["remaining"] == 500
+    gemini = client.get("/api/usage").json()["providers"]["gemini"]
+    assert gemini["budget"] is None and gemini["remaining"] is None

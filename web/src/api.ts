@@ -11,6 +11,7 @@ export type AdvisorEvent =
   | { type: "rework"; agents: AgentName[] }
   | { type: "message"; text: string }
   | { type: "report"; run_id: string; status: RunStatus; markdown: string }
+  | { type: "usage"; provider: string; input: number; output: number }
   | { type: "error"; message: string }
   | { type: "end" };
 
@@ -18,6 +19,32 @@ export interface Health {
   status: string;
   provider: string;
   database: "postgres" | "sqlite";
+}
+
+export interface ProviderInfo {
+  id: string;
+  models: { strong: string; fast: string };
+  /** false when the provider's API key is missing on the server */
+  configured: boolean;
+}
+
+export interface ModelsInfo {
+  default: string;
+  providers: ProviderInfo[];
+}
+
+export interface ProviderUsage {
+  input: number;
+  output: number;
+  total: number;
+  /** monthly token budget from GEMINI_TOKEN_BUDGET / CLAUDE_TOKEN_BUDGET, null when unset */
+  budget: number | null;
+  remaining: number | null;
+}
+
+export interface Usage {
+  period: "month";
+  providers: Record<string, ProviderUsage>;
 }
 
 export interface Scenario {
@@ -61,6 +88,8 @@ async function getJson<T>(url: string): Promise<T> {
 
 export const api = {
   health: () => getJson<Health>("/api/health"),
+  models: () => getJson<ModelsInfo>("/api/models"),
+  usage: () => getJson<Usage>("/api/usage"),
   scenarios: () => getJson<Scenario[]>("/api/scenarios"),
   runs: () => getJson<RunSummary[]>("/api/runs"),
   report: (runId: string) => getJson<{ run_id: string; markdown: string }>(`/api/runs/${runId}/report`),
@@ -68,8 +97,12 @@ export const api = {
   diagramUrl: (runId: string, format: "svg" | "png", download = false) =>
     `/api/runs/${runId}/diagram.${format}${download ? "?download=true" : ""}`,
 
-  async createSession(): Promise<string> {
-    const res = await check(await fetch("/api/sessions", { method: "POST" }));
+  async createSession(provider?: string): Promise<string> {
+    const res = await check(await fetch("/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider }),
+    }));
     return ((await res.json()) as { session_id: string }).session_id;
   },
 

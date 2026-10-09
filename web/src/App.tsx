@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { api, ApiError, type Health, type RunSummary, type Scenario } from "./api";
+import { api, ApiError, type Health, type ModelsInfo, type RunSummary, type Scenario, type Usage } from "./api";
 import { Activity } from "./components/Activity";
 import { Composer } from "./components/Composer";
 import { Icon } from "./components/Icon";
+import { ModelMenu } from "./components/ModelMenu";
 import { Pipeline } from "./components/Pipeline";
 import { ReportView } from "./components/ReportView";
 import { RunHistory } from "./components/RunHistory";
+import { UsageMeter } from "./components/UsageMeter";
 import { initialState, reducer } from "./state";
 
+const PROVIDER_KEY = "advisor.provider";
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 export default function App() {
@@ -17,6 +20,10 @@ export default function App() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [runs, setRuns] = useState<RunSummary[] | null>(null);
   const [runsError, setRunsError] = useState<string | null>(null);
+  const [models, setModels] = useState<ModelsInfo | null>(null);
+  const [provider, setProvider] = useState<string | null>(() => localStorage.getItem(PROVIDER_KEY));
+  const [usage, setUsage] = useState<Usage | null>(null);
+  const [live, setLive] = useState({ input: 0, output: 0 });
   const reportRef = useRef<HTMLDivElement>(null);
 
   const refreshRuns = useCallback(() => {
@@ -28,8 +35,28 @@ export default function App() {
   useEffect(() => {
     api.health().then(setHealth).catch(() => setApiDown(true));
     api.scenarios().then(setScenarios).catch(() => {});
+    api.models().then(setModels).catch(() => {});
     refreshRuns();
   }, [refreshRuns]);
+
+  const refreshUsage = useCallback(() => {
+    api.usage().then((u) => { setUsage(u); setLive({ input: 0, output: 0 }); }).catch(() => {});
+  }, []);
+  useEffect(refreshUsage, [refreshUsage]);
+
+  // The model for the next run: the saved choice if still offered and usable, else the server default.
+  const usable = models?.providers.filter((p) => p.configured) ?? [];
+  const activeProvider = usable.find((p) => p.id === provider)?.id ?? usable.find((p) => p.id === models?.default)?.id
+    ?? usable[0]?.id ?? models?.default ?? health?.provider ?? "";
+
+  const chooseProvider = (id: string) => {
+    if (id === activeProvider) return;
+    if (state.sessionId && state.log.length > 0 &&
+        !window.confirm("Switching model starts a new conversation. The current one will be cleared. Continue?")) return;
+    localStorage.setItem(PROVIDER_KEY, id);
+    setProvider(id);
+    dispatch({ type: "reset" }); // a session belongs to one model
+  };
 
   // Bring a newly produced (or newly opened) report into view.
   useEffect(() => {
@@ -41,18 +68,24 @@ export default function App() {
     try {
       let sessionId = state.sessionId;
       if (!sessionId) {
-        sessionId = await api.createSession();
+        sessionId = await api.createSession(activeProvider);
         dispatch({ type: "session", id: sessionId });
       }
       try {
-        for await (const event of api.send(sessionId, text)) dispatch({ type: "event", event });
+        for await (const event of api.send(sessionId, text)) {
+          if (event.type === "usage") setLive({ input: event.input, output: event.output });
+          dispatch({ type: "event", event });
+        }
       } catch (err) {
         if (!(err instanceof ApiError && err.status === 404)) throw err;
         // The API restarted and lost the in-memory session: continue in a fresh one.
-        sessionId = await api.createSession();
+        sessionId = await api.createSession(activeProvider);
         dispatch({ type: "session", id: sessionId });
         dispatch({ type: "fail", message: "The previous session expired, so this message started a new one." });
-        for await (const event of api.send(sessionId, text)) dispatch({ type: "event", event });
+        for await (const event of api.send(sessionId, text)) {
+          if (event.type === "usage") setLive({ input: event.input, output: event.output });
+          dispatch({ type: "event", event });
+        }
       }
       setApiDown(false);
     } catch (err) {
@@ -60,6 +93,7 @@ export default function App() {
     } finally {
       dispatch({ type: "finish" });
       refreshRuns();
+      refreshUsage();
     }
   };
 
@@ -89,7 +123,13 @@ export default function App() {
         <div className="topbar-right">
           {health && (
             <span className="badges">
-              <span className="badge" title="ADVISOR_PROVIDER">model: {health.provider}</span>
+              {models && usable.length > 0 ? (
+                <ModelMenu providers={models.providers} selected={activeProvider} disabled={state.busy}
+                           onSelect={chooseProvider} />
+              ) : (
+                <span className="badge" title="ADVISOR_PROVIDER">model: {health.provider}</span>
+              )}
+              <UsageMeter provider={activeProvider} usage={usage?.providers[activeProvider]} live={live} />
               <span className="badge" title="Run log storage">log: {health.database}</span>
             </span>
           )}

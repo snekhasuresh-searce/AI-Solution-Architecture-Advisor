@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import AsyncIterator
@@ -23,10 +24,11 @@ from google.genai import types
 from pydantic import BaseModel, Field
 
 from . import architecture, diagram, report, storage
-from .agent import root_agent
+from .agent import build_root_agent
 from .config import settings
 from .export import EXPORTERS, title_of
 from .intake import read_requirement_file
+from .models import model_names
 
 log = logging.getLogger("advisor.api")
 
@@ -36,7 +38,31 @@ USER_ID = "web"
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 app = FastAPI(title="AI Solution Architecture Advisor")
-runner = InMemoryRunner(agent=root_agent, app_name=APP_NAME)
+
+# One agent tree (and runner) per provider, built on first use. A session belongs to the provider it was
+# created with, so switching model in the web app starts a new session.
+_runners: dict[str, InMemoryRunner] = {}
+_session_provider: dict[str, str] = {}
+SWITCHABLE = ("gemini", "claude")
+_KEY_ENV = {"gemini": ("GOOGLE_API_KEY", "GEMINI_API_KEY"), "claude": ("ANTHROPIC_API_KEY",)}
+
+
+def _runner(provider: str) -> InMemoryRunner:
+    if provider not in _runners:
+        _runners[provider] = InMemoryRunner(agent=build_root_agent(provider), app_name=APP_NAME)
+    return _runners[provider]
+
+
+def _providers() -> list[str]:
+    return [*SWITCHABLE, *([settings.provider] if settings.provider not in SWITCHABLE else [])]
+
+
+def _configured(provider: str) -> bool:
+    return provider not in _KEY_ENV or any(os.getenv(k) for k in _KEY_ENV[provider])
+
+
+class SessionRequest(BaseModel):
+    provider: str | None = None
 
 
 class Message(BaseModel):
@@ -54,13 +80,19 @@ def _agent_key(author: str) -> str | None:
     return None
 
 
-async def _events(session_id: str, text: str) -> AsyncIterator[dict]:
+async def _events(session_id: str, text: str, provider: str, usage: dict) -> AsyncIterator[dict]:
     """Translate ADK events into small, UI-friendly progress events."""
     message = types.Content(role="user", parts=[types.Part(text=text)])
     yield {"type": "agent_start", "agent": "analyzer"}
-    async for event in runner.run_async(user_id=USER_ID, session_id=session_id, new_message=message):
+    root_name = _runner(provider).agent.name
+    async for event in _runner(provider).run_async(user_id=USER_ID, session_id=session_id, new_message=message):
         delta = (event.actions.state_delta if event.actions else None) or {}
-        if event.author != root_agent.name:
+        meta = None if event.partial else event.usage_metadata
+        if meta:
+            usage["input"] += meta.prompt_token_count or 0
+            usage["output"] += meta.candidates_token_count or 0
+            yield {"type": "usage", "provider": provider, **usage}
+        if event.author != root_name:
             agent = _agent_key(event.author)
             if agent and (f"spec_{agent}" in delta or {"analysis", "review", "estimate", "architecture"} & delta.keys()):
                 yield {"type": "agent_done", "agent": agent}
@@ -91,6 +123,27 @@ def health() -> dict:
             "database": "postgres" if settings.database_url else "sqlite"}
 
 
+@app.get("/api/models")
+def models() -> dict:
+    """Providers the web app can switch between, and which one new sessions use by default."""
+    return {"default": settings.provider,
+            "providers": [{"id": p, "models": model_names(p), "configured": _configured(p)} for p in _providers()]}
+
+
+@app.get("/api/usage")
+def usage() -> dict:
+    """Tokens used this month per provider, against the optional budget (GEMINI_TOKEN_BUDGET / CLAUDE_TOKEN_BUDGET)."""
+    used = storage.usage_this_month()
+    budgets = {"gemini": settings.gemini_token_budget, "claude": settings.claude_token_budget}
+    out = {}
+    for p in _providers():
+        i, o = used.get(p, (0, 0))
+        budget = budgets.get(p, 0) or None
+        out[p] = {"input": i, "output": o, "total": i + o, "budget": budget,
+                  "remaining": max(budget - i - o, 0) if budget else None}
+    return {"period": "month", "providers": out}
+
+
 @app.get("/api/scenarios")
 def scenarios() -> list[dict]:
     return [{"name": p.stem.split("_", 1)[-1].replace("_", " ").title(), "text": p.read_text().strip()}
@@ -98,24 +151,35 @@ def scenarios() -> list[dict]:
 
 
 @app.post("/api/sessions")
-async def create_session() -> dict:
-    session = await runner.session_service.create_session(app_name=APP_NAME, user_id=USER_ID)
-    return {"session_id": session.id}
+async def create_session(body: SessionRequest | None = None) -> dict:
+    provider = (body.provider if body else None) or settings.provider
+    if provider not in _providers():
+        raise HTTPException(400, f"Unknown model provider {provider!r}; use one of {', '.join(_providers())}")
+    if not _configured(provider):
+        raise HTTPException(400, f"No API key set for {provider}. Add {_KEY_ENV[provider][0]} to .env and restart the API.")
+    session = await _runner(provider).session_service.create_session(app_name=APP_NAME, user_id=USER_ID)
+    _session_provider[session.id] = provider
+    return {"session_id": session.id, "provider": provider}
 
 
 @app.post("/api/sessions/{session_id}/messages")
 async def send_message(session_id: str, body: Message) -> StreamingResponse:
-    session = await runner.session_service.get_session(app_name=APP_NAME, user_id=USER_ID, session_id=session_id)
+    provider = _session_provider.get(session_id)
+    session = (await _runner(provider).session_service.get_session(app_name=APP_NAME, user_id=USER_ID,
+                                                                    session_id=session_id)) if provider else None
     if session is None:
         raise HTTPException(404, "Session not found (the server may have restarted). Start a new requirement.")
 
     async def stream() -> AsyncIterator[str]:
+        used = {"input": 0, "output": 0}
         try:
-            async for item in _events(session_id, body.text.strip()):
+            async for item in _events(session_id, body.text.strip(), provider, used):
                 yield json.dumps(item) + "\n"
         except Exception as exc:  # noqa: BLE001 - report to the browser instead of cutting the stream
             log.exception("Advisor run failed")
             yield json.dumps({"type": "error", "message": f"{type(exc).__name__}: {exc}"}) + "\n"
+        finally:
+            storage.log_usage(provider, used["input"], used["output"])  # also counts a failed or aborted run
         yield json.dumps({"type": "end"}) + "\n"
 
     return StreamingResponse(stream(), media_type="application/x-ndjson")

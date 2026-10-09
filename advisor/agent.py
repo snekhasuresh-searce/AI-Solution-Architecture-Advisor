@@ -13,11 +13,16 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 # Token-usage warnings are noise (and always fire with the mock model).
 logging.getLogger("google_adk.google.adk.telemetry._metrics").setLevel(logging.ERROR)
 
-root_agent = AdvisorOrchestrator(
-    name="solution_advisor",
-    analyzer=build_analyzer(),
-    reviewer=build_reviewer(),
-    estimator=build_estimator(),
-    architect=build_architect(),
-    specialists=build_all_specialists(),
-)
+def build_root_agent(provider: str | None = None) -> AdvisorOrchestrator:
+    """A full agent tree on one provider (None = ADVISOR_PROVIDER). The web app keeps one per provider."""
+    return AdvisorOrchestrator(
+        name="solution_advisor",
+        analyzer=build_analyzer(provider),
+        reviewer=build_reviewer(provider),
+        estimator=build_estimator(provider),
+        architect=build_architect(provider),
+        specialists=build_all_specialists(provider),
+    )
+
+
+root_agent = build_root_agent()
