@@ -40,13 +40,13 @@ def _instruction_for(name: str):
     return provider
 
 
-def build_specialist(name: str) -> LlmAgent:
+def build_specialist(name: str, provider: str | None = None) -> LlmAgent:
     if name not in SPECIALISTS:
         raise ValueError(f"Unknown specialist '{name}'")
     return LlmAgent(
         name=f"{name}_agent",
         description=prompts.SPECIALIST_FOCUS[name].split(".")[0],
-        model=fast_model(),
+        model=fast_model(provider),
         instruction=_instruction_for(name),
         output_schema=SpecialistOutput,
         output_key=f"spec_{name}",
@@ -54,5 +54,5 @@ def build_specialist(name: str) -> LlmAgent:
     )
 
 
-def build_all_specialists() -> dict[str, LlmAgent]:
-    return {name: build_specialist(name) for name in SPECIALISTS}
+def build_all_specialists(provider: str | None = None) -> dict[str, LlmAgent]:
+    return {name: build_specialist(name, provider) for name in SPECIALISTS}

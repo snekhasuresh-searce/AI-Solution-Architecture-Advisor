@@ -97,6 +97,7 @@ function onEvent(state: State, event: AdvisorEvent): State {
                report: { runId: event.run_id, status: event.status, markdown: event.markdown, live: true } };
     case "error":
       return { ...state, log: [...state.log, entry("error", event.message)] };
+    case "usage": // tracked by the model menu, not part of the conversation
     case "end":
       return state;
   }

@@ -23,11 +23,11 @@ def _instruction(ctx: ReadonlyContext) -> str:
     )
 
 
-def build_reviewer() -> LlmAgent:
+def build_reviewer(provider: str | None = None) -> LlmAgent:
     return LlmAgent(
         name="reviewer",
         description="Reviews the combined solution against the original requirement.",
-        model=strong_model(),
+        model=strong_model(provider),
         instruction=_instruction,
         output_schema=ReviewOutput,
         output_key="review",

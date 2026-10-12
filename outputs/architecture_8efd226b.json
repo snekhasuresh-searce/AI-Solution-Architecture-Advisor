@@ -1,0 +1,311 @@
+{
+  "title": "High Availability GCP Web Application Architecture",
+  "overview": "This solution delivers a robust, globally available web application architecture on Google Cloud Platform designed to effortlessly support 100,000 concurrent users with automated disaster recovery and low latency.",
+  "cloud_provider": "Google Cloud Platform",
+  "nodes": [
+    {
+      "id": "end_user",
+      "label": "Web End Users",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "Represents the 100,000 active users accessing the web application globally."
+    },
+    {
+      "id": "sys_admin",
+      "label": "System Administrators",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "Manages platform operations, infrastructure deployments, and security oversight."
+    },
+    {
+      "id": "frontend_app",
+      "label": "Next.js Frontend",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "Next.js",
+      "status": "required",
+      "purpose": "Provides high-performance server-side rendering and responsive user interfaces."
+    },
+    {
+      "id": "frontend_hosting",
+      "label": "Firebase Hosting",
+      "layer": "application",
+      "kind": "cloud_service",
+      "technology": "Firebase Hosting",
+      "status": "recommended",
+      "purpose": "Delivers static assets and frontend code globally via a fast CDN edge infrastructure."
+    },
+    {
+      "id": "backend_api",
+      "label": "Node.js Backend",
+      "layer": "api",
+      "kind": "proposed",
+      "technology": "Node.js",
+      "status": "required",
+      "purpose": "Executes core business logic and REST API operations to serve user requests."
+    },
+    {
+      "id": "compute_cluster",
+      "label": "GKE Compute Cluster",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "GKE",
+      "status": "required",
+      "purpose": "Orchestrates containerised backend services with automated horizontal scaling across regions."
+    },
+    {
+      "id": "global_lb",
+      "label": "Cloud Load Balancing",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "Cloud Load Balancing",
+      "status": "required",
+      "purpose": "Distributes incoming traffic across multi-region backends with automated failover."
+    },
+    {
+      "id": "cloud_cdn",
+      "label": "Cloud CDN",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "Cloud CDN",
+      "status": "recommended",
+      "purpose": "Caches static content at edge locations to minimize user latency and origin load."
+    },
+    {
+      "id": "primary_db",
+      "label": "Cloud SQL Database",
+      "layer": "data",
+      "kind": "cloud_service",
+      "technology": "Cloud SQL",
+      "status": "required",
+      "purpose": "Persists transactional relational data with cross-region replication for disaster recovery."
+    },
+    {
+      "id": "cache_store",
+      "label": "Memorystore Redis",
+      "layer": "data",
+      "kind": "cloud_service",
+      "technology": "Memorystore",
+      "status": "recommended",
+      "purpose": "Stores user sessions and caches frequent queries for low-latency responses."
+    },
+    {
+      "id": "object_storage",
+      "label": "Cloud Storage",
+      "layer": "data",
+      "kind": "cloud_service",
+      "technology": "Cloud Storage",
+      "status": "recommended",
+      "purpose": "Stores durable user media files and system backups."
+    },
+    {
+      "id": "iam_security",
+      "label": "IAM & Secret Manager",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "IAM",
+      "status": "required",
+      "purpose": "Enforces least privilege access and securely manages application secrets."
+    },
+    {
+      "id": "cloud_armor",
+      "label": "Cloud Armor WAF",
+      "layer": "security",
+      "kind": "cloud_service",
+      "technology": "Cloud Armor",
+      "status": "required",
+      "purpose": "Protects the web application against DDoS attacks and layer 7 vulnerabilities."
+    }
+  ],
+  "flows": [
+    {
+      "name": "Web Application Request Flow",
+      "kind": "request",
+      "steps": [
+        {
+          "source": "end_user",
+          "target": "global_lb",
+          "label": "HTTPS request"
+        },
+        {
+          "source": "global_lb",
+          "target": "cloud_cdn",
+          "label": "Check edge cache"
+        },
+        {
+          "source": "global_lb",
+          "target": "compute_cluster",
+          "label": "Route to GKE"
+        },
+        {
+          "source": "compute_cluster",
+          "target": "backend_api",
+          "label": "Process business logic"
+        },
+        {
+          "source": "backend_api",
+          "target": "cache_store",
+          "label": "Fetch session cache"
+        },
+        {
+          "source": "backend_api",
+          "target": "primary_db",
+          "label": "Query relational data"
+        },
+        {
+          "source": "backend_api",
+          "target": "compute_cluster",
+          "label": "Return API response"
+        },
+        {
+          "source": "compute_cluster",
+          "target": "global_lb",
+          "label": "Forward response"
+        },
+        {
+          "source": "global_lb",
+          "target": "end_user",
+          "label": "HTTP response"
+        }
+      ]
+    }
+  ],
+  "requirement_mapping": [
+    {
+      "requirement": "Serve web traffic efficiently to 100,000 users",
+      "components": [
+        "global_lb",
+        "cloud_cdn",
+        "compute_cluster",
+        "backend_api"
+      ]
+    },
+    {
+      "requirement": "Failover mechanism in case of a regional outage",
+      "components": [
+        "global_lb",
+        "compute_cluster",
+        "primary_db"
+      ]
+    },
+    {
+      "requirement": "High availability (e.g., 99.99% uptime)",
+      "components": [
+        "global_lb",
+        "compute_cluster",
+        "primary_db",
+        "cache_store"
+      ]
+    },
+    {
+      "requirement": "Low latency for global or regional users",
+      "components": [
+        "cloud_cdn",
+        "global_lb",
+        "frontend_hosting"
+      ]
+    },
+    {
+      "requirement": "RTO (Recovery Time Objective) and RPO (Recovery Point Objective) definition for disaster recovery",
+      "components": [
+        "primary_db",
+        "compute_cluster",
+        "global_lb"
+      ]
+    }
+  ],
+  "unmapped": [],
+  "assumptions": [
+    "Standard web application architecture with a database and backend services is sufficient.",
+    "Multi-region or multi-zone GCP deployment is required for high availability and disaster recovery.",
+    "Application containers are stateless and ready for horizontal auto-scaling on GKE."
+  ],
+  "technology_stack": [
+    {
+      "layer": "application",
+      "technology": "Next.js",
+      "purpose": "Frontend framework supporting server-side rendering and global performance.",
+      "status": "required"
+    },
+    {
+      "layer": "application",
+      "technology": "Firebase Hosting",
+      "purpose": "Global static content hosting and edge distribution.",
+      "status": "recommended"
+    },
+    {
+      "layer": "api",
+      "technology": "Node.js",
+      "purpose": "Asynchronous backend runtime handling concurrent user API requests.",
+      "status": "required"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "GKE",
+      "purpose": "Container orchestration and automated horizontal pod autoscaling.",
+      "status": "required"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "Cloud Load Balancing",
+      "purpose": "Global anycast HTTP(S) load balancing and multi-region failover.",
+      "status": "required"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "Cloud CDN",
+      "purpose": "Global edge caching for static assets and reduced origin load.",
+      "status": "recommended"
+    },
+    {
+      "layer": "data",
+      "technology": "Cloud SQL",
+      "purpose": "Managed relational database with cross-region replication for disaster recovery.",
+      "status": "required"
+    },
+    {
+      "layer": "data",
+      "technology": "Memorystore",
+      "purpose": "In-memory Redis cache for fast session management and query acceleration.",
+      "status": "recommended"
+    },
+    {
+      "layer": "data",
+      "technology": "Cloud Storage",
+      "purpose": "Durable object storage for user media and system backups.",
+      "status": "recommended"
+    },
+    {
+      "layer": "security",
+      "technology": "IAM",
+      "purpose": "Least privilege access control across all Google Cloud resources.",
+      "status": "required"
+    },
+    {
+      "layer": "security",
+      "technology": "Cloud Armor",
+      "purpose": "DDoS protection and Web Application Firewall security policies.",
+      "status": "required"
+    }
+  ],
+  "security_considerations": [
+    "Enforce TLS 1.3 encryption for all traffic in transit across the load balancers and services.",
+    "Protect against layer 7 DDoS attacks and web vulnerabilities using Cloud Armor WAF rules.",
+    "Centralize credential and secret management securely via Secret Manager.",
+    "Apply the principle of least privilege across all GCP IAM roles and service accounts."
+  ],
+  "scalability_considerations": [
+    "Deploy GKE Horizontal Pod Autoscalers linked to CPU and request metrics to handle 100,000 concurrent users.",
+    "Utilize Cloud CDN and global load balancing to offload static traffic and optimize global user latency.",
+    "Implement Memorystore Redis clustering to prevent database bottlenecks under heavy read loads."
+  ],
+  "future_enhancements": [
+    "Incorporate automated canary deployments and progressive delivery pipelines via CI/CD.",
+    "Expand multi-region active-active database configurations using Google Cloud Spanner for zero RPO.",
+    "Integrate advanced AI-driven anomaly detection for real-time security monitoring."
+  ]
+}

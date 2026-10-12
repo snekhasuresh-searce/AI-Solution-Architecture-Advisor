@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1480 832" width="1480" height="832" font-family="Helvetica, Arial, sans-serif" role="img" aria-label="High Availability GCP Web Application Architecture">
+<rect width="1480" height="832" fill="#ffffff"/>
+<rect x="24.0" y="206.0" width="1432.0" height="554.0" rx="12" fill="#fbfdff" stroke="#2563eb" stroke-width="1.4" stroke-dasharray="6 4"/>
+<text x="36.0" y="225.0" font-size="11" fill="#2563eb" text-anchor="start" font-weight="700">Cloud: Google Cloud Platform  (proposed solution boundary)</text>
+<text x="24.0" y="44.0" font-size="19" fill="#0f172a" text-anchor="start" font-weight="700">High Availability GCP Web Application Architecture</text>
+<text x="24.0" y="64.0" font-size="11.5" fill="#475569" text-anchor="start">High-level solution architecture  ·  cloud: Google Cloud Platform</text>
+<rect x="272.0" y="82.0" width="1172.0" height="96.0" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+<text x="284.0" y="99.0" font-size="9.5" fill="#475569" text-anchor="start" font-weight="700">USERS &amp; STAKEHOLDERS</text>
+<rect x="272.0" y="236.0" width="1172.0" height="96.0" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+<text x="284.0" y="253.0" font-size="9.5" fill="#475569" text-anchor="start" font-weight="700">CLOUD INFRASTRUCTURE &amp; NETWORKING</text>
+<rect x="272.0" y="374.0" width="1172.0" height="96.0" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+<text x="284.0" y="391.0" font-size="9.5" fill="#475569" text-anchor="start" font-weight="700">USER / APPLICATION LAYER</text>
+<rect x="272.0" y="512.0" width="1172.0" height="96.0" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+<text x="284.0" y="529.0" font-size="9.5" fill="#475569" text-anchor="start" font-weight="700">API &amp; APPLICATION SERVICES</text>
+<rect x="272.0" y="650.0" width="1172.0" height="96.0" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+<text x="284.0" y="667.0" font-size="9.5" fill="#475569" text-anchor="start" font-weight="700">DATA LAYER</text>
+<rect x="36.0" y="236.0" width="196.0" height="510.0" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+<text x="48.0" y="254.0" font-size="9.5" fill="#475569" text-anchor="start" font-weight="700">SECURITY (CROSS-CUTTING)</text>
+<rect x="632.0" y="106.0" width="210.0" height="60.0" rx="7" fill="#f1f5f9" stroke="#475569" stroke-width="1.4"/>
+<circle cx="650.0" cy="129.0" r="5" fill="#ffffff" stroke="#475569" stroke-width="1.4"/>
+<path d="M641.0,145.0 A9,9 0 0 1 659.0,145.0" fill="none" stroke="#475569" stroke-width="1.4"/>
+<text x="750.0" y="140.0" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">Web End Users</text>
+<rect x="856.0" y="106.0" width="210.0" height="60.0" rx="7" fill="#f1f5f9" stroke="#475569" stroke-width="1.4"/>
+<circle cx="874.0" cy="129.0" r="5" fill="#ffffff" stroke="#475569" stroke-width="1.4"/>
+<path d="M865.0,145.0 A9,9 0 0 1 883.0,145.0" fill="none" stroke="#475569" stroke-width="1.4"/>
+<text x="974.0" y="140.0" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">System Administrators</text>
+<rect x="632.0" y="398.0" width="210.0" height="60.0" rx="7" fill="#e8f0fe" stroke="#1a56db" stroke-width="1.4"/>
+<text x="737.0" y="425.5" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">Next.js Frontend</text>
+<text x="737.0" y="439.5" font-size="10" fill="#475569" text-anchor="middle">Next.js</text>
+<rect x="856.0" y="398.0" width="210.0" height="60.0" rx="7" fill="#e6f6f4" stroke="#0f766e" stroke-width="1.4" stroke-dasharray="6 4"/>
+<text x="961.0" y="425.5" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">Firebase Hosting</text>
+<text x="961.0" y="439.5" font-size="10" fill="#475569" text-anchor="middle">Firebase Hosting</text>
+<rect x="744.0" y="536.0" width="210.0" height="60.0" rx="7" fill="#e8f0fe" stroke="#1a56db" stroke-width="1.4"/>
+<text x="849.0" y="563.5" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">Node.js Backend</text>
+<text x="849.0" y="577.5" font-size="10" fill="#475569" text-anchor="middle">Node.js</text>
+<rect x="520.0" y="260.0" width="210.0" height="60.0" rx="7" fill="#e6f6f4" stroke="#0f766e" stroke-width="1.4"/>
+<text x="625.0" y="287.5" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">GKE Compute Cluster</text>
+<text x="625.0" y="301.5" font-size="10" fill="#475569" text-anchor="middle">GKE</text>
+<rect x="744.0" y="260.0" width="210.0" height="60.0" rx="7" fill="#e6f6f4" stroke="#0f766e" stroke-width="1.4"/>
+<text x="849.0" y="287.5" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">Cloud Load Balancing</text>
+<text x="849.0" y="301.5" font-size="10" fill="#475569" text-anchor="middle">Cloud Load Balancing</text>
+<rect x="968.0" y="260.0" width="210.0" height="60.0" rx="7" fill="#e6f6f4" stroke="#0f766e" stroke-width="1.4" stroke-dasharray="6 4"/>
+<text x="1073.0" y="287.5" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">Cloud CDN</text>
+<text x="1073.0" y="301.5" font-size="10" fill="#475569" text-anchor="middle">Cloud CDN</text>
+<rect x="520.0" y="674.0" width="210.0" height="60.0" rx="7" fill="#e6f6f4" stroke="#0f766e" stroke-width="1.4"/>
+<text x="625.0" y="701.5" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">Cloud SQL Database</text>
+<text x="625.0" y="715.5" font-size="10" fill="#475569" text-anchor="middle">Cloud SQL</text>
+<rect x="744.0" y="674.0" width="210.0" height="60.0" rx="7" fill="#e6f6f4" stroke="#0f766e" stroke-width="1.4" stroke-dasharray="6 4"/>
+<text x="849.0" y="701.5" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">Memorystore Redis</text>
+<text x="849.0" y="715.5" font-size="10" fill="#475569" text-anchor="middle">Memorystore</text>
+<rect x="968.0" y="674.0" width="210.0" height="60.0" rx="7" fill="#e6f6f4" stroke="#0f766e" stroke-width="1.4" stroke-dasharray="6 4"/>
+<text x="1073.0" y="701.5" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">Cloud Storage</text>
+<text x="1073.0" y="715.5" font-size="10" fill="#475569" text-anchor="middle">Cloud Storage</text>
+<rect x="46.0" y="266.0" width="176.0" height="50.0" rx="7" fill="#e6f6f4" stroke="#0f766e" stroke-width="1.4"/>
+<text x="134.0" y="288.5" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">IAM &amp; Secret Manager</text>
+<text x="134.0" y="302.5" font-size="10" fill="#475569" text-anchor="middle">IAM</text>
+<rect x="46.0" y="326.0" width="176.0" height="50.0" rx="7" fill="#e6f6f4" stroke="#0f766e" stroke-width="1.4"/>
+<text x="134.0" y="348.5" font-size="11.5" fill="#0f172a" text-anchor="middle" font-weight="700">Cloud Armor WAF</text>
+<text x="134.0" y="362.5" font-size="10" fill="#475569" text-anchor="middle">Cloud Armor</text>
+<polyline points="737.0,166.0 737.0,185.0 849.0,185.0 849.0,260.0" fill="none" stroke="#334155" stroke-width="1.6" stroke-linejoin="round"/>
+<polygon points="849.0,260.0 845.7,252.7 852.3,252.7" fill="#334155"/>
+<polygon points="737.0,166.0 740.3,173.3 733.7,173.3" fill="#334155"/>
+<polyline points="954.0,290.0 968.0,290.0" fill="none" stroke="#334155" stroke-width="1.6" stroke-linejoin="round"/>
+<polygon points="968.0,290.0 960.7,293.3 960.7,286.7" fill="#334155"/>
+<polyline points="744.0,290.0 730.0,290.0" fill="none" stroke="#334155" stroke-width="1.6" stroke-linejoin="round"/>
+<polygon points="730.0,290.0 737.3,286.7 737.3,293.3" fill="#334155"/>
+<polygon points="744.0,290.0 736.7,293.3 736.7,286.7" fill="#334155"/>
+<polyline points="625.0,320.0 625.0,339.0 1420.0,339.0 1420.0,477.0 849.0,477.0 849.0,536.0" fill="none" stroke="#334155" stroke-width="1.6" stroke-linejoin="round"/>
+<polygon points="849.0,536.0 845.7,528.7 852.3,528.7" fill="#334155"/>
+<polygon points="625.0,320.0 628.3,327.3 621.7,327.3" fill="#334155"/>
+<polyline points="849.0,596.0 849.0,674.0" fill="none" stroke="#334155" stroke-width="1.6" stroke-linejoin="round"/>
+<polygon points="849.0,674.0 845.7,666.7 852.3,666.7" fill="#334155"/>
+<polyline points="875.0,596.0 875.0,621.0 625.0,621.0 625.0,674.0" fill="none" stroke="#334155" stroke-width="1.6" stroke-linejoin="round"/>
+<polygon points="625.0,674.0 621.7,666.7 628.3,666.7" fill="#334155"/>
+<rect x="780.5" y="177.0" width="25.0" height="16.0" rx="8" fill="#334155" stroke="#ffffff" stroke-width="1"/>
+<text x="793.0" y="188.2" font-size="9" fill="#ffffff" text-anchor="middle" font-weight="700">1, 9</text>
+<rect x="953.5" y="282.0" width="16.0" height="16.0" rx="8" fill="#334155" stroke="#ffffff" stroke-width="1"/>
+<text x="961.0" y="293.2" font-size="9" fill="#ffffff" text-anchor="middle" font-weight="700">2</text>
+<rect x="724.5" y="282.0" width="25.0" height="16.0" rx="8" fill="#334155" stroke="#ffffff" stroke-width="1"/>
+<text x="737.0" y="293.2" font-size="9" fill="#ffffff" text-anchor="middle" font-weight="700">3, 8</text>
+<rect x="1010.0" y="331.0" width="25.0" height="16.0" rx="8" fill="#334155" stroke="#ffffff" stroke-width="1"/>
+<text x="1022.5" y="342.2" font-size="9" fill="#ffffff" text-anchor="middle" font-weight="700">4, 7</text>
+<rect x="841.5" y="627.0" width="16.0" height="16.0" rx="8" fill="#334155" stroke="#ffffff" stroke-width="1"/>
+<text x="849.0" y="638.2" font-size="9" fill="#ffffff" text-anchor="middle" font-weight="700">5</text>
+<rect x="742.5" y="613.0" width="16.0" height="16.0" rx="8" fill="#334155" stroke="#ffffff" stroke-width="1"/>
+<text x="750.0" y="624.2" font-size="9" fill="#ffffff" text-anchor="middle" font-weight="700">6</text>
+<rect x="24.0" y="776.0" width="16.0" height="12.0" rx="3" fill="#f1f5f9" stroke="#475569" stroke-width="1.2"/>
+<text x="46.0" y="786.0" font-size="10.5" fill="#0f172a" text-anchor="start">User / stakeholder</text>
+<rect x="143.2" y="776.0" width="16.0" height="12.0" rx="3" fill="#e8f0fe" stroke="#1a56db" stroke-width="1.2"/>
+<text x="165.2" y="786.0" font-size="10.5" fill="#0f172a" text-anchor="start">Proposed solution component</text>
+<rect x="316.1" y="776.0" width="16.0" height="12.0" rx="3" fill="#e6f6f4" stroke="#0f766e" stroke-width="1.2"/>
+<text x="338.1" y="786.0" font-size="10.5" fill="#0f172a" text-anchor="start">Managed cloud service</text>
+<rect x="24.0" y="798.0" width="16.0" height="12.0" rx="3" fill="#ffffff" stroke="#475569" stroke-width="1.2" stroke-dasharray="6 4"/>
+<text x="46.0" y="808.0" font-size="10.5" fill="#0f172a" text-anchor="start">Dashed = recommended / proposed (not stated in requirements)</text>
+<polyline points="363.1,804.0 389.1,804.0" fill="none" stroke="#334155" stroke-width="2" stroke-linejoin="round"/>
+<text x="395.1" y="808.0" font-size="10.5" fill="#0f172a" text-anchor="start">Request / response flow (1, 2, …)</text>
+</svg>

@@ -23,11 +23,11 @@ def _instruction(ctx: ReadonlyContext) -> str:
     )
 
 
-def build_estimator() -> LlmAgent:
+def build_estimator(provider: str | None = None) -> LlmAgent:
     return LlmAgent(
         name="estimator",
         description="Estimates the team, technical resources, effort and timeline for the reviewed solution.",
-        model=strong_model(),
+        model=strong_model(provider),
         instruction=_instruction,
         output_schema=EstimationOutput,
         output_key="estimate",

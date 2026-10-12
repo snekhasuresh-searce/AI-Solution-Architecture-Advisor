@@ -1,0 +1,202 @@
+{
+  "title": "Company Website Frontend",
+  "overview": "A high-performance, responsive company website featuring Home, About, Services, and Contact pages built with Astro and Tailwind CSS. The architecture prioritizes lightning-fast load times, exceptional accessibility compliance, and secure static deployment via Netlify.",
+  "cloud_provider": "To be confirmed",
+  "nodes": [
+    {
+      "id": "prospective_clients",
+      "label": "Prospective Clients",
+      "layer": "users",
+      "kind": "actor",
+      "technology": "",
+      "status": "required",
+      "purpose": "End users visiting the company website to view information and contact the business."
+    },
+    {
+      "id": "frontend_app",
+      "label": "Frontend Web App",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "Astro",
+      "status": "required",
+      "purpose": "Delivers zero-JS by default static pages for Home, About, Services, and Contact ensuring fast load times."
+    },
+    {
+      "id": "ui_components",
+      "label": "UI Component Library",
+      "layer": "application",
+      "kind": "proposed",
+      "technology": "Tailwind CSS",
+      "status": "required",
+      "purpose": "Provides responsive layouts, styling, and mobile-first design using utility classes."
+    },
+    {
+      "id": "form_handler",
+      "label": "Contact Form Handler",
+      "layer": "integrations",
+      "kind": "third_party",
+      "technology": "Netlify Forms",
+      "status": "recommended",
+      "purpose": "Manages contact form submissions without requiring a dedicated custom backend."
+    },
+    {
+      "id": "static_hosting",
+      "label": "Static CDN Hosting",
+      "layer": "infrastructure",
+      "kind": "cloud_service",
+      "technology": "Netlify",
+      "status": "recommended",
+      "purpose": "Ensures global CDN delivery and automated CI/CD deployment for the static site."
+    },
+    {
+      "id": "security_policy",
+      "label": "Content Security Policy",
+      "layer": "security",
+      "kind": "proposed",
+      "technology": "OWASP ZAP",
+      "status": "recommended",
+      "purpose": "Enforces secure browser headers and prevents XSS vulnerabilities."
+    },
+    {
+      "id": "performance_monitor",
+      "label": "Performance Audit",
+      "layer": "operations",
+      "kind": "proposed",
+      "technology": "Lighthouse",
+      "status": "recommended",
+      "purpose": "Automates audits to maintain optimal Core Web Vitals thresholds."
+    }
+  ],
+  "flows": [
+    {
+      "name": "Website Navigation Request",
+      "kind": "request",
+      "steps": [
+        {
+          "source": "prospective_clients",
+          "target": "static_hosting",
+          "label": "HTTPS Request"
+        },
+        {
+          "source": "static_hosting",
+          "target": "frontend_app",
+          "label": "Serve Static HTML"
+        },
+        {
+          "source": "frontend_app",
+          "target": "ui_components",
+          "label": "Render Tailwind Layout"
+        },
+        {
+          "source": "frontend_app",
+          "target": "prospective_clients",
+          "label": "Return Page Content"
+        }
+      ]
+    }
+  ],
+  "requirement_mapping": [
+    {
+      "requirement": "Navigation menu across all pages",
+      "components": [
+        "frontend_app",
+        "ui_components"
+      ]
+    },
+    {
+      "requirement": "Contact form UI without backend processing",
+      "components": [
+        "frontend_app",
+        "form_handler"
+      ]
+    },
+    {
+      "requirement": "Responsive layout adapting to various screen sizes",
+      "components": [
+        "frontend_app",
+        "ui_components"
+      ]
+    },
+    {
+      "requirement": "Fast load times",
+      "components": [
+        "frontend_app",
+        "static_hosting"
+      ]
+    },
+    {
+      "requirement": "Accessible design",
+      "components": [
+        "frontend_app",
+        "ui_components"
+      ]
+    },
+    {
+      "requirement": "Cross-browser compatibility",
+      "components": [
+        "frontend_app"
+      ]
+    }
+  ],
+  "unmapped": [],
+  "assumptions": [
+    "Contact form will be handled by a third-party service or mailto link.",
+    "Static hosting will be used with CI/CD deployment pipelines.",
+    "All copy and visual assets for the four core pages will be provided upfront.",
+    "No dynamic backend database or custom server logic is required."
+  ],
+  "technology_stack": [
+    {
+      "layer": "application",
+      "technology": "Astro",
+      "purpose": "Static site generation and zero-JS framework",
+      "status": "required"
+    },
+    {
+      "layer": "application",
+      "technology": "Tailwind CSS",
+      "purpose": "Responsive styling and utility classes",
+      "status": "required"
+    },
+    {
+      "layer": "infrastructure",
+      "technology": "Netlify",
+      "purpose": "Global CDN static hosting and deployment",
+      "status": "recommended"
+    },
+    {
+      "layer": "integrations",
+      "technology": "Netlify Forms",
+      "purpose": "Serverless contact form processing",
+      "status": "recommended"
+    },
+    {
+      "layer": "security",
+      "technology": "OWASP ZAP",
+      "purpose": "Security header and vulnerability scanning",
+      "status": "recommended"
+    },
+    {
+      "layer": "operations",
+      "technology": "Lighthouse",
+      "purpose": "Core Web Vitals and accessibility auditing",
+      "status": "recommended"
+    }
+  ],
+  "security_considerations": [
+    "Configure strict Content Security Policy (CSP), X-Frame-Options, and X-Content-Type-Options headers.",
+    "Sanitize all contact form inputs to prevent DOM-based XSS if user data is reflected.",
+    "Ensure all static assets and communications are served exclusively over HTTPS.",
+    "Utilize Subresource Integrity (SRI) for any external scripts or assets."
+  ],
+  "scalability_considerations": [
+    "Static CDN edge caching naturally handles spikes in standard business traffic without server strain.",
+    "Purged Tailwind CSS bundles minimize bandwidth consumption on mobile devices.",
+    "Optimized image delivery via modern formats ensures rapid Largest Contentful Paint (LCP)."
+  ],
+  "future_enhancements": [
+    "Integrate a headless CMS for dynamic content and blog management.",
+    "Add multi-language localization support for international audiences.",
+    "Implement advanced analytics and conversion tracking on the contact form."
+  ]
+}

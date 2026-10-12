@@ -11,6 +11,7 @@ export type AdvisorEvent =
   | { type: "rework"; agents: AgentName[] }
   | { type: "message"; text: string }
   | { type: "report"; run_id: string; status: RunStatus; markdown: string }
+  | { type: "usage"; provider: string; input: number; output: number }
   | { type: "error"; message: string }
   | { type: "end" };
 
@@ -18,6 +19,33 @@ export interface Health {
   status: string;
   provider: string;
   database: "postgres" | "sqlite";
+}
+
+export interface ProviderInfo {
+  id: string;
+  models: { strong: string; fast: string };
+  /** false when the provider's API key is missing on the server */
+  configured: boolean;
+}
+
+export interface ModelsInfo {
+  default: string;
+  providers: ProviderInfo[];
+}
+
+export interface ProviderUsage {
+  input: number;
+  output: number;
+  total: number;
+  /** monthly token budget from GEMINI_TOKEN_BUDGET / CLAUDE_TOKEN_BUDGET, null when unset */
+  budget: number | null;
+  remaining: number | null;
+}
+
+/** This month's tokens per model provider (the top-bar meter); not the admin Usage page's `Usage`. */
+export interface ModelUsage {
+  period: "month";
+  providers: Record<string, ProviderUsage>;
 }
 
 export interface Scenario {
@@ -181,14 +209,20 @@ export const api = {
   runs: () => getJson<RunSummary[]>("/api/runs"),
   report: (runId: string) => getJson<{ run_id: string; markdown: string }>(`/api/runs/${runId}/report`),
   trace: (runId: string) => getJson<{ run_id: string; spans: TraceSpan[] }>(`/api/runs/${runId}/trace`),
+  models: () => getJson<ModelsInfo>("/api/models"),
+  modelUsage: () => getJson<ModelUsage>("/api/model-usage"),
   usage: (days: number) => getJson<Usage>(`/api/usage?days=${days}`),
   exportUrl: (runId: string, format: ExportFormat) => apiUrl(`/api/runs/${runId}/export/${format}`),
   /** Path as it appears in report Markdown; wrap with apiUrl() to fetch it. */
   diagramPath: (runId: string, format: "svg" | "png", download = false) =>
     `/api/runs/${runId}/diagram.${format}${download ? "?download=true" : ""}`,
 
-  async createSession(): Promise<string> {
-    const res = await check(await request("/api/sessions", { method: "POST" }));
+  async createSession(provider?: string): Promise<string> {
+    const res = await check(await request("/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider }),
+    }));
     return ((await res.json()) as { session_id: string }).session_id;
   },
 

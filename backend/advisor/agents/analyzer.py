@@ -7,11 +7,11 @@ from ..models import strong_model
 from ..schemas import AnalyzerOutput
 
 
-def build_analyzer() -> LlmAgent:
+def build_analyzer(provider: str | None = None) -> LlmAgent:
     return LlmAgent(
         name="requirement_analyzer",
         description="Extracts a structured brief and classifies the solution domains.",
-        model=strong_model(),
+        model=strong_model(provider),
         instruction=prompts.ANALYZER,
         output_schema=AnalyzerOutput,
         output_key="analysis",
