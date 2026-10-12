@@ -1,4 +1,12 @@
-# Shared; each project has its own .gitignore too.
+# Shared; each project has its own .gitignore too. These also catch files
+# created at the repo root by tools run from the wrong folder.
 .DS_Store
 .env
 .venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+dist/
+outputs/
+*.sqlite
