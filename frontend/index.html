@@ -6,8 +6,21 @@
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="theme-color" content="#3D2BFF" />
+    <meta name="theme-color" content="#080B22" />
     <meta name="description" content="Nexora turns a client requirement into a reviewed solution architecture, team, estimate and timeline." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" />
+    <script>
+      // Apply the saved Normal/Night mode before the first paint (see src/theme.ts).
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem("advisor.theme"); } catch (e) {}
+        if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
     <title>Nexora · AI solution architecture advisor</title>
   </head>
   <body>

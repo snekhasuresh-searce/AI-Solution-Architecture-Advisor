@@ -35,7 +35,7 @@ export function ModelMenu({ providers, selected, disabled, onSelect }: Props) {
       <button type="button" className="badge model-trigger" aria-haspopup="listbox" aria-expanded={open}
               disabled={disabled} onClick={() => setOpen(!open)}
               title={disabled ? "Finish the current run to switch model" : "Choose the model"}>
-        model: {providerLabel(selected)} <span aria-hidden="true">▾</span>
+        <span className="live-dot on" aria-hidden="true" /> model: <b>{providerLabel(selected)}</b> <span aria-hidden="true">▾</span>
       </button>
       {open && (
         <ul className="model-list" role="listbox" aria-label="Model">

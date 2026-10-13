@@ -243,7 +243,7 @@ a.menu-item { text-decoration: none; }
 @media print {
   @page { margin: 16mm; }
   body { background: #fff; }
-  .topbar, .banner, .history, .toasts, .no-print, .intro { display: none !important; }
+  .topbar, .banner, .rail-slot, .history, .toasts, .no-print, .intro { display: none !important; }
   .layout, .layout.doc-wide { display: block; max-width: none; padding: 0; }
   .card.report.doc { border: 0; box-shadow: none; background: none; }
   .doc-workspace { display: block; height: auto; min-height: 0; background: none; }

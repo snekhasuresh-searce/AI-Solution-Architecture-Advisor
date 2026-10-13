@@ -8,17 +8,20 @@ import { Icon } from "./components/Icon";
 import { ModelMenu } from "./components/ModelMenu";
 import { Pipeline } from "./components/Pipeline";
 import { LoginPage } from "./components/LoginPage";
-import { RunHistory } from "./components/RunHistory";
+import { CollapsedRail, RunHistory } from "./components/RunHistory";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { UsageMeter } from "./components/UsageMeter";
 import { UsageView } from "./components/UsageView";
 import { UserMenu } from "./components/UserMenu";
 import { initialState, reducer } from "./state";
+import { useTheme } from "./theme";
 import { useToast } from "./toast";
 
 // The document editor (TipTap) is most of the bundle: load it when a report is first opened.
 const ReportView = lazy(() => import("./components/ReportView").then((m) => ({ default: m.ReportView })));
 
 const PROVIDER_KEY = "advisor.provider";
+const RAIL_KEY = "advisor.runsRail";
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 const isSignedOut = (err: unknown) => err instanceof ApiError && err.status === 401;
 
@@ -52,6 +55,11 @@ export default function App() {
   const [live, setLive] = useState({ input: 0, output: 0 });
   const [docWide, setDocWide] = useState(false);  // document editor without the run history column
   const reportRef = useRef<HTMLDivElement>(null);
+  const [theme, setTheme] = useTheme();
+  const [railOpen, setRailOpen] = useState(() => {
+    try { return localStorage.getItem(RAIL_KEY) !== "closed"; } catch { return true; }
+  });
+  const railButton = useRef<HTMLButtonElement>(null);
   const toast = useToast();
 
   /** Back to the sign-in page; `expired` when the server rejected the session mid-use. */
@@ -87,6 +95,28 @@ export default function App() {
     api.models().then(setModels).catch(() => {});
     refreshRuns();
   }, [user, refreshRuns]);
+
+  const toggleRail = useCallback((fromRail = false) => {
+    setRailOpen((open) => {
+      try { localStorage.setItem(RAIL_KEY, open ? "closed" : "open"); } catch { /* keep it for this page only */ }
+      return !open;
+    });
+    // The collapse button disappears with the rail, so hand focus to the header toggle.
+    if (fromRail) railButton.current?.focus();
+  }, []);
+
+  // ⌘B / Ctrl+B shows or hides the runs rail on the Advisor page.
+  useEffect(() => {
+    if (!user || view !== "advisor") return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleRail();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [user, view, toggleRail]);
 
   const refreshUsage = useCallback(() => {
     api.modelUsage().then((u) => { setModelUsage(u); setLive({ input: 0, output: 0 }); }).catch(() => {});
@@ -212,7 +242,16 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <BrandLockup />
+        <div className="topbar-left">
+          <BrandLockup />
+          {view === "advisor" && (
+            <button ref={railButton} type="button" className={`btn rail-toggle${railOpen ? " active" : ""}`}
+                    onClick={() => toggleRail()} aria-pressed={railOpen} aria-controls="runs-rail"
+                    title={`${railOpen ? "Hide" : "Show"} recent runs (⌘/Ctrl + B)`}>
+              <Icon name="sidebar" /> <span className="rail-label">Runs</span> <kbd>⌘B</kbd>
+            </button>
+          )}
+        </div>
         <div className="topbar-right">
           {health && (
             <span className="badges">
@@ -220,12 +259,13 @@ export default function App() {
                 <ModelMenu providers={models.providers} selected={activeProvider} disabled={state.busy}
                            onSelect={chooseProvider} />
               ) : (
-                <span className="badge" title="ADVISOR_PROVIDER">model: {health.provider}</span>
+                <span className="badge" title="ADVISOR_PROVIDER">model: <b>{health.provider}</b></span>
               )}
               <UsageMeter provider={activeProvider} usage={modelUsage?.providers[activeProvider]} live={live} />
-              <span className="badge" title="Run log storage">log: {health.database}</span>
+              <span className="badge" title="Run log storage">log: <b>{health.database}</b></span>
             </span>
           )}
+          <ThemeToggle theme={theme} onChange={setTheme} />
           {user.role !== "consultant" && (
             <nav className="tabs" aria-label="Sections">
               <button type="button" className={`tab ${view === "advisor" ? "active" : ""}`}
@@ -239,7 +279,7 @@ export default function App() {
             </nav>
           )}
           {view === "advisor" && (
-            <button type="button" className="btn" onClick={() => dispatch({ type: "reset" })}
+            <button type="button" className="btn primary" onClick={() => dispatch({ type: "reset" })}
                     disabled={state.busy || empty}>
               <Icon name="plus" /> New requirement
             </button>
@@ -260,10 +300,22 @@ export default function App() {
       ) : view === "usage" && user.role !== "consultant" ? (
         <div className="layout single"><UsageView onOpenRun={openRunById} /></div>
       ) : (
-      <div className={`layout ${docWide && state.report ? "doc-wide" : ""}`}>
+      <div className={`layout${railOpen ? "" : " rail-closed"}${docWide && state.report ? " doc-wide" : ""}`}>
+        {!(docWide && state.report) && (
+          <div className="rail-slot">
+            {railOpen ? (
+              <RunHistory runs={runs} error={runsError} activeRunId={state.report?.runId} onOpen={openRun}
+                          onCollapse={() => toggleRail(true)}
+                          currentEmail={user.role === "consultant" ? undefined : user.email} />
+            ) : (
+              <CollapsedRail runs={runs} onExpand={() => toggleRail(true)} />
+            )}
+          </div>
+        )}
         <main className="main">
           {empty && (
             <div className="intro">
+              <span className="eyebrow mono">Multi-agent solution architecture</span>
               <h1>Turn a requirement into a reviewed architecture</h1>
               <p className="muted">
                 An analyzer classifies your request, only the relevant specialist agents design their part in
@@ -273,10 +325,10 @@ export default function App() {
             </div>
           )}
           <div className="no-print contents">
-            <Composer busy={state.busy} awaitingAnswer={state.awaitingAnswer} hasConversation={hasConversation}
-                      scenarios={scenarios} onSubmit={submit} />
             <Pipeline state={state} />
             <Activity log={state.log} busy={state.busy} />
+            <Composer busy={state.busy} awaitingAnswer={state.awaitingAnswer} hasConversation={hasConversation}
+                      scenarios={scenarios} onSubmit={submit} />
           </div>
           <div ref={reportRef} className="report-anchor">
             {state.report && (
@@ -287,12 +339,16 @@ export default function App() {
             )}
           </div>
         </main>
-        {!(docWide && state.report) && (
-          <RunHistory runs={runs} error={runsError} activeRunId={state.report?.runId} onOpen={openRun}
-                      currentEmail={user.role === "consultant" ? undefined : user.email} />
-        )}
       </div>
       )}
+
+      <footer className="statusbar mono">
+        <span className={apiDown ? "down" : "up"}>
+          <span className={`dot ${apiDown ? "warn" : "ok"}`} /> Advisor API: {apiDown ? "unreachable" : "online"}
+        </span>
+        {health && <span className="statusbar-extra">model: {activeProvider || health.provider} · log: {health.database}</span>}
+        <span className="statusbar-right">Nexora · by Searce</span>
+      </footer>
     </div>
   );
 }
