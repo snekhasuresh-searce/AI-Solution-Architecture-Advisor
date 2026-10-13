@@ -331,7 +331,7 @@ export default function App() {
           <span className={`dot ${apiDown ? "warn" : "ok"}`} /> Advisor API: {apiDown ? "unreachable" : "online"}
         </span>
         {health && <span className="statusbar-extra">model: {activeProvider || health.provider} · log: {health.database}</span>}
-        <span className="statusbar-right">Nexora · by Searce</span>
+        <span className="statusbar-right">Archpilot · by Searce</span>
       </footer>
     </div>
   );

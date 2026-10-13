@@ -19,8 +19,8 @@ from pathlib import Path
 # ------------------------------------------------------------------ branding
 LOGO = Path(__file__).parent / "assets" / "searce_logo.png"
 # Product credit in the header's right corner (the Searce logo stays the main mark on client documents).
-PRODUCT_MARK = Path(__file__).parent / "assets" / "nexora_mark.png"
-PRODUCT_CREDIT = "Nexora · AI solution architecture advisor"
+PRODUCT_MARK = Path(__file__).parent / "assets" / "archpilot_mark.png"
+PRODUCT_CREDIT = "Archpilot · AI-powered solution architecture advisor"
 # Google Sans is not freely redistributable: Word uses it when installed on the reader's machine, and the
 # PDF embeds it when the TTFs are in advisor/assets/fonts (or installed); otherwise a fallback font is used.
 FONT = "Google Sans"

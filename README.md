@@ -1,6 +1,6 @@
-<img src="brand/nexora-logo.png" width="220" alt="Nexora">
+<img src="brand/archpilot-logo.png" width="360" alt="Archpilot">
 
-# Nexora — AI solution architecture advisor
+# Archpilot — AI-powered solution architecture advisor
 
 A multi-agent advisor that turns a plain-language requirement into a reviewed
 solution recommendation. Built with Google's Agent Development Kit (ADK) and
@@ -14,10 +14,10 @@ requirement ─► Analyzer ─► Agent Selector ─► Specialists (parallel) 
 
 ## Brand
 
-The product name is **Nexora**, with the descriptor "AI solution architecture advisor".
-Logo files are in [`brand/`](brand/): the original (`nexora-original.png`), the full logo,
-the N mark, and the wordmark with a dark-theme variant (its navy letters lightened).
-Client documents keep the Searce logo; Nexora appears as a small credit.
+The product name is **Archpilot**, with the descriptor "AI-powered solution architecture advisor".
+Logo files are in [`brand/`](brand/): the original (`archpilot-original.png`), the full logo and its
+dark-theme variant, the "A" mark, and the wordmark with a dark-theme variant (its navy letters lightened).
+Client documents keep the Searce logo; Archpilot appears as a small credit.
 
 ## Repository layout
 
@@ -27,7 +27,7 @@ Two independent projects:
 backend/     Python API + agents (FastAPI, Google ADK) - its own venv, .env, Dockerfile
 frontend/    React + TypeScript web app (Vite)        - its own package.json, Dockerfile
 docker-compose.yml   runs both together
-brand/       Nexora logo artwork (original, mark, wordmark, dark variant)
+brand/       Archpilot logo artwork (original, full logo, mark, wordmark, dark variants)
 ```
 
 The frontend talks to the backend only over HTTP (`/api/...`), so each can be
