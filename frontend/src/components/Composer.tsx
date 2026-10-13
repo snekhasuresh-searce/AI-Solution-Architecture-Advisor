@@ -90,7 +90,7 @@ export function Composer({ busy, awaitingAnswer, hasConversation, scenarios, onS
         />
         <div className="deck-shelf">
           <span className="ftypes">
-            Supported: <code>.txt</code> <code>.md</code> <code>.pdf</code> <code>.docx</code>
+            Supported: <code>.txt</code> <code>.md</code> <code>.pdf</code> <code>.docx</code> <code>.pptx</code>
           </span>
           <span className="shortcut"><kbd>⌘/Ctrl</kbd> + <kbd>Enter</kbd> to send</span>
         </div>

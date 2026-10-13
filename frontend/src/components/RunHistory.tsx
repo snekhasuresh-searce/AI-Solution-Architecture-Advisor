@@ -49,7 +49,7 @@ export function CollapsedRail({ runs, onExpand }: { runs: RunSummary[] | null; o
     <aside className="card mini-rail" aria-label="Recent runs (hidden)">
       <button type="button" className="mini-expand" onClick={onExpand} aria-label="Show recent runs"
               title="Show recent runs (⌘/Ctrl + B)">
-        <Icon name="expand" size={18} />
+        <Icon name="railExpand" size={18} />
       </button>
       <span className="mini-divider" aria-hidden="true" />
       <button type="button" className="mini-stat" onClick={onExpand} title={`${count} recent runs`}>
@@ -76,7 +76,7 @@ export function RunHistory({ runs, error, activeRunId, onOpen, onCollapse, curre
           <h2 className="card-title"><Icon name="clock" size={15} /> Recent runs</h2>
           <button type="button" className="icon-btn" onClick={onCollapse} aria-label="Hide recent runs"
                   title="Hide recent runs (⌘/Ctrl + B)">
-            <Icon name="collapse" size={15} />
+            <Icon name="railCollapse" size={15} />
           </button>
         </header>
         {error && <p className="muted small">Could not load runs: {error}</p>}
@@ -103,6 +103,7 @@ export function RunHistory({ runs, error, activeRunId, onOpen, onCollapse, curre
                       {approved ? "Approved" : "Escalated"}{r.overall != null && <> · {r.overall.toFixed(1)}</>}
                     </span>
                     {r.rounds > 1 && <span className="muted mono small">{r.rounds} review rounds</span>}
+                    {r.edited && <span className="pill edited" title="Edited after generation">Edited</span>}
                   </span>
                   {r.domains.length > 0 && (
                     <span className="run-domains">{r.domains.map((d) => <span key={d} className="domain mono">{d}</span>)}</span>

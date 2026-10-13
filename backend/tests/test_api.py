@@ -86,6 +86,32 @@ def test_bad_requests(client):
     assert res.json() == {"text": "# Need\nA REST API"}
 
 
+def test_intake_pptx(client):
+    import io
+
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[1])  # title and content
+    slide.shapes.title.text = "Customer portal"
+    slide.placeholders[1].text_frame.text = "Self-service order tracking"
+    table = slide.shapes.add_table(2, 2, Inches(1), Inches(4), Inches(4), Inches(1)).table
+    for (r, c), value in {(0, 0): "Users", (0, 1): "Peak", (1, 0): "5,000", (1, 1): "200/s"}.items():
+        table.cell(r, c).text = value
+    group = slide.shapes.add_group_shape()
+    group.shapes.add_textbox(Inches(5), Inches(1), Inches(2), Inches(1)).text_frame.text = "SSO required"
+    slide.notes_slide.notes_text_frame.text = "Go-live in Q3"
+    deck.slides.add_slide(deck.slide_layouts[6])  # blank: skipped
+    buf = io.BytesIO()
+    deck.save(buf)
+
+    res = client.post("/api/intake", files={"file": ("brief.pptx", buf.getvalue())})
+    assert res.status_code == 200
+    assert res.json()["text"] == ("Slide 1\nCustomer portal\nSelf-service order tracking\nUsers | Peak\n5,000 | 200/s\n"
+                                  "SSO required\nNotes: Go-live in Q3")
+
+
 def test_models_and_session_provider(client, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     listed = client.get("/api/models").json()
