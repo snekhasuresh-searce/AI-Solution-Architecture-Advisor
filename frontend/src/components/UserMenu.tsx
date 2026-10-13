@@ -12,10 +12,12 @@ function initials(user: User): string {
   return source.split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join("");
 }
 
+/** The Google profile photo, or the initials when there is none or it fails to load. */
 function Avatar({ user, large = false }: { user: User; large?: boolean }) {
+  const [failed, setFailed] = useState<string | null>(null);
   const cls = `avatar${large ? " large" : ""}`;
-  return user.picture
-    ? <img className={cls} src={user.picture} alt="" referrerPolicy="no-referrer" />
+  return user.picture && failed !== user.picture
+    ? <img className={cls} src={user.picture} alt="" referrerPolicy="no-referrer" onError={() => setFailed(user.picture)} />
     : <span className={cls} aria-hidden="true">{initials(user)}</span>;
 }
 

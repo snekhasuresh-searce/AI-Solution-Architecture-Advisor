@@ -211,6 +211,29 @@ def test_google_account_keeps_identity_when_email_changes(google):
     assert ids[0] == ids[1]  # same user, so their runs stay theirs
 
 
+def _google_sign_in(google, monkeypatch, sub, userinfo, **claims) -> dict:
+    client = TestClient(app, headers=HEADERS)
+    params = _start(client)
+    google.clear()
+    google.update(email=_email("photo"), email_verified=True, hd="searce.com", nonce=params["nonce"], sub=sub, **claims)
+    monkeypatch.setattr(auth, "exchange_code", lambda code, verifier: {"id_token": "t", "access_token": "at"})
+    monkeypatch.setattr(auth, "fetch_userinfo", lambda token: dict(userinfo) if token == "at" else {})
+    client.get("/api/auth/callback", params={"code": "c", "state": params["state"]}, follow_redirects=False)
+    return client.get("/api/auth/me").json()
+
+
+def test_google_profile_photo(google, monkeypatch):
+    sub = uuid.uuid4().hex
+    me = _google_sign_in(google, monkeypatch, sub, {"picture": "https://lh3/from-userinfo"},
+                         name="Has Token Photo", picture="https://lh3/from-token")
+    assert me["picture"] == "https://lh3/from-token"                        # the ID token wins when it has one
+    long_url = "https://lh3/from-userinfo" + "x" * 1500  # real Google URLs can pass 1,000 characters
+    me = _google_sign_in(google, monkeypatch, sub, {"picture": long_url, "name": "Info Name"})
+    assert me["picture"] == long_url and me["name"] == "Info Name"  # missing claims: userinfo
+    me = _google_sign_in(google, monkeypatch, sub, {}, name="No Photo")
+    assert me["picture"] == long_url                                        # no photo this time: keep the saved one
+
+
 def test_dev_login_disabled_in_google_mode(google):
     assert TestClient(app, headers=HEADERS).post("/api/auth/dev-login",
                                                  json={"email": _email("x")}).status_code == 404

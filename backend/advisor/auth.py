@@ -17,6 +17,7 @@ import base64
 import hashlib
 import logging
 import secrets
+import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -27,7 +28,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, MetaData, String, Table, delete, func, insert, select,
+from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, MetaData, String, Table, Text, delete, func, insert, select,
                         update)
 
 from . import db
@@ -42,6 +43,7 @@ CLIENT_HEADER = "X-Advisor-Client"  # required on writes; a cross-site form cann
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 STATE_TTL = timedelta(minutes=10)
 
 # ----------------------------------------------------------------- tables
@@ -52,7 +54,7 @@ users = Table(
     Column("id", String(36), primary_key=True),
     Column("email", String(320), nullable=False, unique=True),
     Column("name", String(200)),
-    Column("picture", String(1000)),
+    Column("picture", Text),  # Google photo URLs can exceed 1,000 characters
     Column("role", String(20), nullable=False, default="consultant"),
     Column("active", Boolean, nullable=False, default=True),
     Column("google_sub", String(255), unique=True),
@@ -81,11 +83,33 @@ oauth_states = Table(
 _tables_ready = False
 
 
+_tables_lock = threading.Lock()
+
+
 def ensure_tables() -> None:
     global _tables_ready
-    if not _tables_ready:
-        metadata.create_all(db.engine())
+    if _tables_ready:
+        return
+    with _tables_lock:  # concurrent first requests must not create or alter the tables at the same time
+        if _tables_ready:
+            return
+        engine = db.engine()
+        metadata.create_all(engine)
+        _widen_picture_column(engine)
         _tables_ready = True
+
+
+def _widen_picture_column(engine) -> None:
+    """Older Postgres tables have users.picture as VARCHAR(1000); make it TEXT (SQLite has no limit)."""
+    if engine.dialect.name != "postgresql":
+        return
+    with engine.begin() as conn:
+        kind = conn.exec_driver_sql(
+            "SELECT data_type FROM information_schema.columns "
+            "WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'picture'").scalar()
+        if kind == "character varying":  # only then: ALTER takes an exclusive lock on the table
+            conn.exec_driver_sql("ALTER TABLE users ALTER COLUMN picture TYPE TEXT")
+            log.info("Widened users.picture to TEXT")
 
 
 def _now() -> datetime:
@@ -135,6 +159,8 @@ def upsert_user(*, email: str, name: str | None, picture: str | None, google_sub
         row = conn.execute(select(users).where(users.c.google_sub == google_sub)).first() if google_sub else None
         row = row or conn.execute(select(users).where(users.c.email == email)).first()
         values = {"email": email, "name": name, "picture": picture, "last_login_at": _now()}
+        if picture is None:
+            del values["picture"]  # keep the saved photo when this sign-in did not supply one
         if google_sub:
             values["google_sub"] = google_sub
         if email in settings.admin_emails:
@@ -285,6 +311,22 @@ def verify_id_token(token: str) -> dict:
     return id_token.verify_oauth2_token(token, google_requests.Request(), settings.google_client_id)
 
 
+def fetch_userinfo(access_token: str | None) -> dict:
+    """Profile claims (name, picture) from Google's userinfo endpoint; {} when unavailable.
+
+    Google does not always put the profile claims in the ID token, so this fills the gaps.
+    Identity and domain checks never use it: they rely on the verified ID token only."""
+    if not access_token:
+        return {}
+    try:
+        res = httpx.get(GOOGLE_USERINFO_URL, headers={"Authorization": f"Bearer {access_token}"}, timeout=10)
+        res.raise_for_status()
+        return res.json()
+    except Exception:  # noqa: BLE001 - the profile photo is optional; sign-in must not fail on it
+        log.warning("Could not fetch the Google profile (userinfo)", exc_info=True)
+        return {}
+
+
 def _login_redirect(error: str) -> RedirectResponse:
     return RedirectResponse(f"{settings.frontend_url}/?{urlencode({'auth_error': error})}", status_code=303)
 
@@ -333,7 +375,8 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     if row is None or _aware(row.expires_at) < _now():
         return _login_redirect("expired")
     try:
-        claims = verify_id_token(exchange_code(code, row.code_verifier)["id_token"])
+        tokens = exchange_code(code, row.code_verifier)
+        claims = verify_id_token(tokens["id_token"])
     except Exception:  # noqa: BLE001 - never echo token errors to the browser
         log.exception("Google token exchange or verification failed")
         return _login_redirect("failed")
@@ -345,8 +388,11 @@ def callback(request: Request, code: str | None = None, state: str | None = None
     if not claims.get("email_verified") or str(claims.get("hd", "")).lower() not in settings.allowed_domains \
             or not domain_allowed(email):
         return _login_redirect("domain")
-    user = upsert_user(email=email, name=claims.get("name"), picture=claims.get("picture"),
-                       google_sub=claims.get("sub"))
+    name, picture = claims.get("name"), claims.get("picture")
+    if not (name and picture):
+        profile = fetch_userinfo(tokens.get("access_token"))
+        name, picture = name or profile.get("name"), picture or profile.get("picture")
+    user = upsert_user(email=email, name=name, picture=picture, google_sub=claims.get("sub"))
     if not user.active:
         return _login_redirect("inactive")
     response = RedirectResponse(settings.frontend_url + row.next_path, status_code=303)
