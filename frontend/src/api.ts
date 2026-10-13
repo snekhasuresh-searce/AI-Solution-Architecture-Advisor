@@ -1,8 +1,10 @@
 // Typed client for the Python API (advisor/api.py).
 
+import type { JSONContent } from "@tiptap/core";
+
 export type AgentName = string; // "analyzer" | "reviewer" | specialist name
 export type RunStatus = "APPROVED" | "ESCALATED";
-export type ExportFormat = "docx" | "pdf";
+export type ExportFormat = "docx" | "pdf" | "md";
 
 export type AdvisorEvent =
   | { type: "agent_start"; agent: AgentName }
@@ -63,6 +65,8 @@ export interface RunSummary {
   rounds: number;
   title: string | null;
   has_report: boolean;
+  /** true when the report has been edited (its title may then differ from the generated one) */
+  edited?: boolean;
   /** Email of the user who ran it; shown to reviewers and admins. */
   owner: string | null;
   /** From the run's trace; null for runs from before tracing. */
@@ -119,6 +123,38 @@ export interface Usage {
   by_agent: UsageGroup[];
   slowest: UsageRun[];
   most_expensive: UsageRun[];
+}
+
+/** Editor content: a TipTap / ProseMirror JSON document. */
+export type DocJSON = JSONContent & { type: "doc" };
+
+/** An edited recommendation (backend documents.py). */
+export interface EditedDocument {
+  run_id: string;
+  title: string;
+  content: DocJSON;
+  /** +1 on each save; sent back as base_version so stale tabs cannot overwrite newer edits */
+  version: number;
+  created_at: string;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+export interface DocumentState {
+  run_id: string;
+  /** false for reviewers looking at someone else's run */
+  editable: boolean;
+  /** null until the first edit is saved: the run still shows its AI-generated report */
+  document: EditedDocument | null;
+}
+
+export interface DocumentVersion {
+  id: string;
+  version: number;
+  title: string;
+  reason: "manual" | "auto" | "reset";
+  created_at: string;
+  created_by: string | null;
 }
 
 export type Role = "consultant" | "reviewer" | "admin";
@@ -212,6 +248,13 @@ export const api = {
   models: () => getJson<ModelsInfo>("/api/models"),
   modelUsage: () => getJson<ModelUsage>("/api/model-usage"),
   usage: (days: number) => getJson<Usage>(`/api/usage?days=${days}`),
+  document: (runId: string) => getJson<DocumentState>(`/api/runs/${runId}/document`),
+  saveDocument: (runId: string, body: { title: string; content: DocJSON; base_version: number | null; manual?: boolean }) =>
+    sendJson<EditedDocument>(`/api/runs/${runId}/document`, "PUT", body),
+  resetDocument: (runId: string) => sendJson<{ reset: boolean }>(`/api/runs/${runId}/document`, "DELETE"),
+  documentVersions: (runId: string) => getJson<DocumentVersion[]>(`/api/runs/${runId}/document/versions`),
+  documentVersion: (runId: string, id: string) =>
+    getJson<DocumentVersion & { content: DocJSON }>(`/api/runs/${runId}/document/versions/${id}`),
   exportUrl: (runId: string, format: ExportFormat) => apiUrl(`/api/runs/${runId}/export/${format}`),
   /** Path as it appears in report Markdown; wrap with apiUrl() to fetch it. */
   diagramPath: (runId: string, format: "svg" | "png", download = false) =>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, ApiError, authApi, type AdvisorEvent, type AuthConfig, type Health, type ModelsInfo, type ModelUsage, type RunSummary, type Scenario, type User } from "./api";
 import { Activity } from "./components/Activity";
 import { AdminUsers } from "./components/AdminUsers";
@@ -7,7 +7,6 @@ import { Composer } from "./components/Composer";
 import { Icon } from "./components/Icon";
 import { ModelMenu } from "./components/ModelMenu";
 import { Pipeline } from "./components/Pipeline";
-import { ReportView } from "./components/ReportView";
 import { LoginPage } from "./components/LoginPage";
 import { RunHistory } from "./components/RunHistory";
 import { UsageMeter } from "./components/UsageMeter";
@@ -15,6 +14,9 @@ import { UsageView } from "./components/UsageView";
 import { UserMenu } from "./components/UserMenu";
 import { initialState, reducer } from "./state";
 import { useToast } from "./toast";
+
+// The document editor (TipTap) is most of the bundle: load it when a report is first opened.
+const ReportView = lazy(() => import("./components/ReportView").then((m) => ({ default: m.ReportView })));
 
 const PROVIDER_KEY = "advisor.provider";
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -48,6 +50,7 @@ export default function App() {
   const [provider, setProvider] = useState<string | null>(() => localStorage.getItem(PROVIDER_KEY));
   const [modelUsage, setModelUsage] = useState<ModelUsage | null>(null);
   const [live, setLive] = useState({ input: 0, output: 0 });
+  const [docWide, setDocWide] = useState(false);  // document editor without the run history column
   const reportRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
 
@@ -59,6 +62,8 @@ export default function App() {
     dispatch({ type: "reset" });
     setRuns(null);
   }, [toast]);
+
+  const expireSession = useCallback(() => signedOut(true), [signedOut]);
 
   const refreshRuns = useCallback(() => {
     api.runs()
@@ -255,7 +260,7 @@ export default function App() {
       ) : view === "usage" && user.role !== "consultant" ? (
         <div className="layout single"><UsageView onOpenRun={openRunById} /></div>
       ) : (
-      <div className="layout">
+      <div className={`layout ${docWide && state.report ? "doc-wide" : ""}`}>
         <main className="main">
           {empty && (
             <div className="intro">
@@ -267,14 +272,25 @@ export default function App() {
               </p>
             </div>
           )}
-          <Composer busy={state.busy} awaitingAnswer={state.awaitingAnswer} hasConversation={hasConversation}
-                    scenarios={scenarios} onSubmit={submit} />
-          <Pipeline state={state} />
-          <Activity log={state.log} busy={state.busy} />
-          <div ref={reportRef}>{state.report && <ReportView report={state.report} />}</div>
+          <div className="no-print contents">
+            <Composer busy={state.busy} awaitingAnswer={state.awaitingAnswer} hasConversation={hasConversation}
+                      scenarios={scenarios} onSubmit={submit} />
+            <Pipeline state={state} />
+            <Activity log={state.log} busy={state.busy} />
+          </div>
+          <div ref={reportRef} className="report-anchor">
+            {state.report && (
+              <Suspense fallback={<section className="card report"><p className="doc-loading muted">Loading the editor…</p></section>}>
+                <ReportView report={state.report} expanded={docWide} onToggleExpand={() => setDocWide((w) => !w)}
+                            onSaved={refreshRuns} onSignedOut={expireSession} />
+              </Suspense>
+            )}
+          </div>
         </main>
-        <RunHistory runs={runs} error={runsError} activeRunId={state.report?.runId} onOpen={openRun}
-                    currentEmail={user.role === "consultant" ? undefined : user.email} />
+        {!(docWide && state.report) && (
+          <RunHistory runs={runs} error={runsError} activeRunId={state.report?.runId} onOpen={openRun}
+                      currentEmail={user.role === "consultant" ? undefined : user.email} />
+        )}
       </div>
       )}
     </div>

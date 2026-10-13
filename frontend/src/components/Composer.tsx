@@ -77,13 +77,13 @@ export function Composer({ busy, awaitingAnswer, hasConversation, scenarios, onS
         </div>
       )}
       <div className="composer-actions">
-        <input ref={fileInput} type="file" accept=".txt,.md,.pdf,.docx" hidden
+        <input ref={fileInput} type="file" accept=".txt,.md,.pdf,.docx,.pptx" hidden
                onChange={(e) => upload(e.target.files?.[0])} />
         <button type="button" className="btn ghost" onClick={() => fileInput.current?.click()}
                 disabled={busy || uploading}>
           {uploading ? <Spinner /> : <Icon name="upload" />} Upload file
         </button>
-        <span className="muted hint">.txt, .md, .pdf or .docx · ⌘/Ctrl + Enter to send</span>
+        <span className="muted hint">.txt, .md, .pdf, .docx or .pptx · ⌘/Ctrl + Enter to send</span>
         <button type="button" className="btn primary" onClick={submit} disabled={busy || !text.trim()}>
           {busy ? <Spinner /> : <Icon name="send" />}
           {busy ? "Working…" : awaitingAnswer ? "Send answer" : "Analyze requirement"}

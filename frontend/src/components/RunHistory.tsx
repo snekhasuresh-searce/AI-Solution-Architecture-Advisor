@@ -34,6 +34,7 @@ export function RunHistory({ runs, error, activeRunId, onOpen, currentEmail }: P
                 {r.status === "APPROVED" ? "Approved" : "Escalated"}
                 {r.overall != null && <> · {r.overall.toFixed(1)}</>}
                 <span className="muted"> · {dateFmt.format(new Date(r.created_at))}</span>
+                {r.edited && <span className="pill edited" title="Edited after generation">Edited</span>}
               </span>
               {r.domains.length > 0 && <span className="run-domains">{r.domains.join(", ")}</span>}
               {r.duration_ms != null && (
