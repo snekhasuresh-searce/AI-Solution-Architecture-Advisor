@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -87,6 +88,8 @@ def _sqlite() -> sqlite3.Connection:
 
 # ---------------------------------------------------------------- Postgres
 _pg_ready = False
+_pg_schema_lock = threading.Lock()
+_PG_SCHEMA_LOCK_ID = 727_101  # any constant; shared by every process that sets up the schema
 
 
 def _postgres():
@@ -95,10 +98,16 @@ def _postgres():
     global _pg_ready
     conn = psycopg.connect(settings.database_url)
     if not _pg_ready:
-        with conn.transaction():
-            conn.execute(_PG_SCHEMA)
-            conn.execute(_PG_USAGE)
-        _pg_ready = True
+        # Concurrent first requests would each run the schema, and its ALTER TABLE takes an exclusive
+        # table lock, so two of them deadlock. One thread sets it up; the advisory lock does the same
+        # across server processes.
+        with _pg_schema_lock:
+            if not _pg_ready:
+                with conn.transaction():
+                    conn.execute("SELECT pg_advisory_xact_lock(%s)", (_PG_SCHEMA_LOCK_ID,))
+                    conn.execute(_PG_SCHEMA)
+                    conn.execute(_PG_USAGE)
+                _pg_ready = True
     return conn
 
 
