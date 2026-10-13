@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { authApi, ROLES, type AuthConfig, type Role, type User } from "../api";
-import { NexoraMark, PRODUCT_DESCRIPTOR, Wordmark } from "./Brand";
+import { ArchpilotMark, PRODUCT_DESCRIPTOR, Wordmark } from "./Brand";
 import { Icon, Spinner } from "./Icon";
 
 const ERRORS: Record<string, string> = {
@@ -53,7 +53,7 @@ export function LoginPage({ config, error, onSignedIn }: Props) {
   return (
     <div className="login-wrap">
       <section className="card login" aria-labelledby="login-title">
-        <span className="login-logo"><NexoraMark size={88} /></span>
+        <span className="login-logo"><ArchpilotMark size={96} /></span>
         <h1 id="login-title" className="login-wordmark"><Wordmark height={44} /></h1>
         <p className="login-descriptor">{PRODUCT_DESCRIPTOR}</p>
         <p className="muted">Sign in with your {domain} Google Workspace account.</p>

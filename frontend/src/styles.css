@@ -1,6 +1,6 @@
 /* "Cyber Mission Control" design from Stitch (design/stitch/DESIGN.md).
-   Brand spectrum from the Nexora logo: magenta #BB33FD, violet #6317EE, indigo #2F2AFD,
-   azure #0091FD, cyan #00E1FE. Normal (light) and Night (dark) modes are switched with
+   Brand spectrum: magenta #BB33FD, violet #6317EE, indigo #2F2AFD, azure #0091FD,
+   cyan #00E1FE; it sits alongside the Archpilot logo's sky-blue to violet gradient. Normal (light) and Night (dark) modes are switched with
    <html data-theme>; text and button pairs are checked for WCAG AA (4.5:1) in both. */
 :root {
   --brand-magenta: #BB33FD;

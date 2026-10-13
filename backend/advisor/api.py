@@ -40,7 +40,7 @@ APP_NAME = "solution_advisor"
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
-app = FastAPI(title="Nexora — AI solution architecture advisor")
+app = FastAPI(title="Archpilot — AI-powered solution architecture advisor")
 
 
 @app.middleware("http")
