@@ -15,6 +15,7 @@ psycopg[binary]>=3.2      # Postgres run log (optional; SQLite by default)
 # Document intake and export
 pypdf>=4.0
 python-docx>=1.1
+python-pptx>=1.0
 reportlab>=4.2          # PDF export
 
 # Web API (fastapi and uvicorn also come with google-adk)

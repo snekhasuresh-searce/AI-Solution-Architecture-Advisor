@@ -23,6 +23,24 @@
         "set ADVISOR_PROVIDER=mock&& backend\\.venv\\Scripts\\python.exe -m uvicorn advisor.api:app --app-dir backend --port 8092"
       ],
       "port": 8092
+    },
+    {
+      "name": "backend-mock-dev",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": [
+        "/c",
+        "set ADVISOR_PROVIDER=mock&& set ADVISOR_AUTH_MODE=dev&& set ADVISOR_DB_PATH=outputs/dev/app.sqlite&& set ADVISOR_OUTPUT_DIR=outputs/dev&& backend\\.venv\\Scripts\\python.exe -m uvicorn advisor.api:app --app-dir backend --port 8093"
+      ],
+      "port": 8093
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": [
+        "/c",
+        "set API_PROXY_TARGET=http://localhost:8093&& npm --prefix frontend run dev -- --port 5173 --strictPort"
+      ],
+      "port": 5173
     }
   ]
 }

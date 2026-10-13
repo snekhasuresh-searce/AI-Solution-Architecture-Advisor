@@ -134,14 +134,11 @@ def title_of(markdown: str) -> str:
 
 
 # -------------------------------------------------------------------- DOCX
-def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
+def new_docx(title: str):
+    """An empty Word document with the report styles and the branded header and footer."""
     from docx import Document
-    from docx.enum.table import WD_TABLE_ALIGNMENT
-    from docx.shared import Inches, Pt, RGBColor
-
-    from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
-    from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
+    from docx.shared import Inches, Pt, RGBColor
 
     doc = Document()
     for section in doc.sections:
@@ -171,87 +168,117 @@ def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
         if fonts is not None:
             for attr in ("w:asciiTheme", "w:hAnsiTheme", "w:eastAsiaTheme", "w:cstheme"):
                 fonts.attrib.pop(qn(attr), None)
-    doc.core_properties.title = title_of(markdown)
+    doc.core_properties.title = title
     doc.core_properties.author = "Searce"
+    _brand_section(doc.sections[0], title)
+    return doc
 
-    def border(paragraph, edge: str, color: str = RULE, size: str = "6") -> None:
-        ppr = paragraph._p.get_or_add_pPr()
-        bdr = OxmlElement("w:pBdr")
-        side = OxmlElement(f"w:{edge}")
-        for k, v in (("val", "single"), ("sz", size), ("space", "4"), ("color", color)):
-            side.set(qn(f"w:{k}"), v)
-        bdr.append(side)
-        ppr.append(bdr)
 
-    def field_run(paragraph, code: str) -> None:
-        run = paragraph.add_run()
-        run.font.size, run.font.color.rgb = Pt(8.5), RGBColor(0x59, 0x63, 0x6E)
-        for kind, text in (("begin", None), (None, code), ("end", None)):
-            if kind:
-                el = OxmlElement("w:fldChar")
-                el.set(qn("w:fldCharType"), kind)
-            else:
-                el = OxmlElement("w:instrText")
-                el.set(qn("xml:space"), "preserve")
-                el.text = text
-            run._r.append(el)
+def docx_border(paragraph, edge: str, color: str = RULE, size: str = "6") -> None:
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
 
-    def brand_section(section) -> None:
-        """Logo + product name in the header, document title and page number in the footer."""
-        width = section.page_width - section.left_margin - section.right_margin
-        head = section.header.paragraphs[0]
-        head.text = ""
-        head.paragraph_format.tab_stops.add_tab_stop(width, WD_TAB_ALIGNMENT.RIGHT)
-        height = Inches(0.42)
-        head.add_run().add_picture(str(LOGO), height=height)
-        head.add_run("\t")
-        head.add_run().add_picture(str(PRODUCT_MARK), height=Inches(0.2))
-        credit = head.add_run(" " + PRODUCT_CREDIT)
-        credit.font.size, credit.font.color.rgb = Pt(8.5), RGBColor(0x59, 0x63, 0x6E)
-        border(head, "bottom")
-        foot = section.footer.paragraphs[0]
-        foot.text = ""
-        foot.paragraph_format.tab_stops.add_tab_stop(width, WD_TAB_ALIGNMENT.RIGHT)
-        border(foot, "top", ACCENT, "36")  # thick blue bar
-        foot.paragraph_format.space_after = Pt(0)
-        grey = RGBColor(0x59, 0x63, 0x6E)
-        r = foot.add_run(f"{title_of(markdown)}\t{date.today():%d-%b-%Y}")
-        r.font.size, r.font.color.rgb = Pt(9), grey
-        second = section.footer.add_paragraph()
-        second.paragraph_format.tab_stops.add_tab_stop(width, WD_TAB_ALIGNMENT.RIGHT)
-        r = second.add_run("Confidential\tPage ")
-        r.font.size, r.font.color.rgb = Pt(9), grey
-        field_run(second, "PAGE")
-        r = second.add_run(" of ")
-        r.font.size, r.font.color.rgb = Pt(9), grey
-        field_run(second, "NUMPAGES")
+    ppr = paragraph._p.get_or_add_pPr()
+    bdr = OxmlElement("w:pBdr")
+    side = OxmlElement(f"w:{edge}")
+    for k, v in (("val", "single"), ("sz", size), ("space", "4"), ("color", color)):
+        side.set(qn(f"w:{k}"), v)
+    bdr.append(side)
+    ppr.append(bdr)
 
-    def shade(cell, fill: str) -> None:
-        tcpr = cell._tc.get_or_add_tcPr()
-        shd = OxmlElement("w:shd")
-        for k, v in (("val", "clear"), ("color", "auto"), ("fill", fill)):
-            shd.set(qn(f"w:{k}"), v)
-        tcpr.append(shd)
 
-    def style_table(table, widths_in: float) -> None:
-        tblpr = table._tbl.tblPr
-        borders = OxmlElement("w:tblBorders")
-        for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
-            el = OxmlElement(f"w:{edge}")
-            for k, v in (("val", "single"), ("sz", "4"), ("space", "0"), ("color", RULE)):
-                el.set(qn(f"w:{k}"), v)
-            borders.append(el)
-        tblpr.append(borders)
-        margins = OxmlElement("w:tblCellMar")
-        for edge, w in (("top", 60), ("left", 100), ("bottom", 60), ("right", 100)):
-            el = OxmlElement(f"w:{edge}")
-            el.set(qn("w:w"), str(w))
-            el.set(qn("w:type"), "dxa")
-            margins.append(el)
-        tblpr.append(margins)
-        table.autofit = False
+def _field_run(paragraph, code: str) -> None:
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt, RGBColor
 
-    brand_section(doc.sections[0])
+    run = paragraph.add_run()
+    run.font.size, run.font.color.rgb = Pt(8.5), RGBColor(0x59, 0x63, 0x6E)
+    for kind, text in (("begin", None), (None, code), ("end", None)):
+        if kind:
+            el = OxmlElement("w:fldChar")
+            el.set(qn("w:fldCharType"), kind)
+        else:
+            el = OxmlElement("w:instrText")
+            el.set(qn("xml:space"), "preserve")
+            el.text = text
+        run._r.append(el)
+
+
+def _brand_section(section, title: str) -> None:
+    """Logo + product name in the header, document title and page number in the footer."""
+    from docx.enum.text import WD_TAB_ALIGNMENT
+    from docx.shared import Inches, Pt, RGBColor
+
+    width = section.page_width - section.left_margin - section.right_margin
+    head = section.header.paragraphs[0]
+    head.text = ""
+    head.paragraph_format.tab_stops.add_tab_stop(width, WD_TAB_ALIGNMENT.RIGHT)
+    height = Inches(0.42)
+    head.add_run().add_picture(str(LOGO), height=height)
+    head.add_run("\t")
+    head.add_run().add_picture(str(PRODUCT_MARK), height=Inches(0.2))
+    credit = head.add_run(" " + PRODUCT_CREDIT)
+    credit.font.size, credit.font.color.rgb = Pt(8.5), RGBColor(0x59, 0x63, 0x6E)
+    docx_border(head, "bottom")
+    foot = section.footer.paragraphs[0]
+    foot.text = ""
+    foot.paragraph_format.tab_stops.add_tab_stop(width, WD_TAB_ALIGNMENT.RIGHT)
+    docx_border(foot, "top", ACCENT, "36")  # thick blue bar
+    foot.paragraph_format.space_after = Pt(0)
+    grey = RGBColor(0x59, 0x63, 0x6E)
+    r = foot.add_run(f"{title}\t{date.today():%d-%b-%Y}")
+    r.font.size, r.font.color.rgb = Pt(9), grey
+    second = section.footer.add_paragraph()
+    second.paragraph_format.tab_stops.add_tab_stop(width, WD_TAB_ALIGNMENT.RIGHT)
+    r = second.add_run("Confidential\tPage ")
+    r.font.size, r.font.color.rgb = Pt(9), grey
+    _field_run(second, "PAGE")
+    r = second.add_run(" of ")
+    r.font.size, r.font.color.rgb = Pt(9), grey
+    _field_run(second, "NUMPAGES")
+
+
+def docx_shade(element, fill: str) -> None:
+    """Background fill for a table cell, or for a run (highlighted text)."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    props = element._tc.get_or_add_tcPr() if hasattr(element, "_tc") else element._r.get_or_add_rPr()
+    shd = OxmlElement("w:shd")
+    for k, v in (("val", "clear"), ("color", "auto"), ("fill", fill)):
+        shd.set(qn(f"w:{k}"), v)
+    props.append(shd)
+
+
+def docx_style_table(table) -> None:
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    tblpr = table._tbl.tblPr
+    borders = OxmlElement("w:tblBorders")
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        el = OxmlElement(f"w:{edge}")
+        for k, v in (("val", "single"), ("sz", "4"), ("space", "0"), ("color", RULE)):
+            el.set(qn(f"w:{k}"), v)
+        borders.append(el)
+    tblpr.append(borders)
+    margins = OxmlElement("w:tblCellMar")
+    for edge, w in (("top", 60), ("left", 100), ("bottom", 60), ("right", 100)):
+        el = OxmlElement(f"w:{edge}")
+        el.set(qn("w:w"), str(w))
+        el.set(qn("w:type"), "dxa")
+        margins.append(el)
+    tblpr.append(margins)
+    table.autofit = False
+
+
+def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.oxml import OxmlElement
+    from docx.shared import Pt, RGBColor
+
+    doc = new_docx(title_of(markdown))
 
     def add_runs(paragraph, text: str, size: Pt | None = None, bold: bool = False) -> None:
         for i, line in enumerate(text.split("\n")):
@@ -271,7 +298,7 @@ def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
             heading = doc.add_heading(level=min(block.level - 1, 3))  # level 0 = Title
             add_runs(heading, block.text)
             if block.level <= 2:
-                border(heading, "bottom", ACCENT if block.level == 1 else RULE)
+                docx_border(heading, "bottom", ACCENT if block.level == 1 else RULE)
         elif block.kind == "para":
             add_runs(doc.add_paragraph(), block.text)
         elif block.kind == "bullets":
@@ -299,7 +326,7 @@ def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
             table.alignment = WD_TABLE_ALIGNMENT.CENTER
             sec = doc.sections[-1]
             usable = sec.page_width - sec.left_margin - sec.right_margin
-            style_table(table, usable)
+            docx_style_table(table)
             # Same sizing as the PDF: share by text length, never narrower than the longest word.
             widths = _col_widths(block.rows, usable / 12700, char_w=5.6)
             for r, row in enumerate(block.rows):
@@ -315,11 +342,11 @@ def to_docx(markdown: str, architecture: dict | None = None) -> bytes:
                     para.paragraph_format.space_after = Pt(0)
                     add_runs(para, row[c] if c < len(row) else "", size=Pt(9), bold=r == 0)
                     if r == 0:
-                        shade(cell, NAVY)
+                        docx_shade(cell, NAVY)
                         for run in para.runs:
                             run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
                     elif r % 2 == 0:
-                        shade(cell, BAND)
+                        docx_shade(cell, BAND)
             spacer = doc.add_paragraph()
             spacer.paragraph_format.space_after = Pt(4)
 
@@ -409,14 +436,15 @@ def _col_widths(rows: list[list[str]], total: float, char_w: float = 5.0) -> lis
     return widths
 
 
-def to_pdf(markdown: str, architecture: dict | None = None) -> bytes:
+def pdf_frame(buf, title: str):
+    """An A4 document template with the branded header and footer, and the report's paragraph styles:
+    1-3 (headings), "p", "q" (quote), "cell", "head" (table header cell), plus "line" (rule colour)."""
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_LEFT
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.platypus import (BaseDocTemplate, Frame, HRFlowable, KeepTogether, ListFlowable, ListItem,
-                                    PageTemplate, Paragraph, Spacer, Table, TableStyle)
+    from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate
 
     regular, bold, uni = _fonts()
     ink, muted, accent, line = (colors.HexColor(c) for c in ("#1f2328", "#59636e", "#1f5fbf", "#d0d7de"))
@@ -439,7 +467,6 @@ def to_pdf(markdown: str, architecture: dict | None = None) -> bytes:
     margin = 16 * mm
     top = 26 * mm  # room for the logo header
     bottom = 22 * mm
-    title = title_of(markdown)
     logo_h = 11 * mm
 
     def page_frame(canvas, _doc) -> None:
@@ -468,14 +495,26 @@ def to_pdf(markdown: str, architecture: dict | None = None) -> bytes:
         canvas.drawRightString(w - margin, 6.5 * mm, f"Page {canvas.getPageNumber()}")
         canvas.restoreState()
 
-    footer = page_frame
-    buf = io.BytesIO()
     doc = BaseDocTemplate(buf, pagesize=A4, leftMargin=margin, rightMargin=margin, topMargin=top,
                           bottomMargin=bottom, title=title, author="Searce")
     doc.addPageTemplates([
         PageTemplate("portrait", [Frame(margin, bottom, A4[0] - 2 * margin, A4[1] - top - bottom, id="p")],
-                     onPage=footer, pagesize=A4),
+                     onPage=page_frame, pagesize=A4),
     ])
+    return doc, {**styles, "p": para, "q": quote, "cell": cell, "head": head, "line": line}
+
+
+def to_pdf(markdown: str, architecture: dict | None = None) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import (HRFlowable, KeepTogether, ListFlowable, ListItem, Paragraph, Spacer, Table,
+                                    TableStyle)
+
+    regular, _bold, uni = _fonts()
+    buf = io.BytesIO()
+    doc, styles = pdf_frame(buf, title_of(markdown))
+    para, quote, cell, head, line = (styles[k] for k in ("p", "q", "cell", "head", "line"))
+    top, bottom = doc.topMargin, doc.bottomMargin
     story = []
     for block in parse(markdown):
         if block.kind == "heading":

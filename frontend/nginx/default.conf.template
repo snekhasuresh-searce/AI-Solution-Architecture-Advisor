@@ -5,7 +5,10 @@ server {
 
   location /api/ {
     proxy_pass ${BACKEND_URL};
-    proxy_set_header Host $host;
+    # The backend's own host: Cloud Run routes by Host, and HTTPS needs it for SNI.
+    proxy_set_header Host $proxy_host;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_ssl_server_name on;
     proxy_buffering off;          # stream agent progress as it happens
     proxy_read_timeout 600s;      # a full run can take several minutes
     client_max_body_size 10m;     # requirement uploads

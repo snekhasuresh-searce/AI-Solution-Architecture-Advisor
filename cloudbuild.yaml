@@ -1,0 +1,114 @@
+# Builds both images, pushes them to Artifact Registry and deploys them to Cloud Run.
+#
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_OAUTH_CLIENT_ID=xxxx.apps.googleusercontent.com,_ADMIN_EMAILS=you@searce.com
+#
+# The browser only talks to the frontend service; its nginx forwards /api to the
+# backend service, so the session cookie stays on one origin.
+#
+# One-time setup (replace PROJECT_ID, REGION and the passwords):
+#   gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com \
+#     sqladmin.googleapis.com secretmanager.googleapis.com storage.googleapis.com
+#   gcloud artifacts repositories create advisor --repository-format=docker --location=REGION
+#   gcloud sql instances create advisor-db --database-version=POSTGRES_16 --tier=db-g1-small --region=REGION
+#   gcloud sql databases create advisor --instance=advisor-db
+#   gcloud sql users create advisor --instance=advisor-db --password=DB_PASSWORD
+#   gcloud storage buckets create gs://PROJECT_ID-advisor-outputs --location=REGION
+#   Secrets (printf avoids a trailing newline):
+#     printf 'postgresql://advisor:DB_PASSWORD@/advisor?host=/cloudsql/PROJECT_ID:REGION:advisor-db' \
+#       | gcloud secrets create advisor-database-url --data-file=-
+#     printf 'sk-ant-...' | gcloud secrets create anthropic-api-key --data-file=-
+#     printf 'AIza...'    | gcloud secrets create google-api-key --data-file=-
+#     printf 'GOCSPX-...' | gcloud secrets create oauth-client-secret --data-file=-
+#   Runtime service account (the backend runs as it):
+#     gcloud iam service-accounts create advisor-run
+#     roles for advisor-run@PROJECT_ID.iam.gserviceaccount.com:
+#       roles/secretmanager.secretAccessor, roles/cloudsql.client,
+#       roles/storage.objectAdmin on the outputs bucket
+#   Build service account (Cloud Build's, by default PROJECT_NUMBER-compute@developer.gserviceaccount.com):
+#     roles/run.admin, roles/artifactregistry.writer, roles/iam.serviceAccountUser on advisor-run
+#   OAuth client: add https://advisor-frontend-PROJECT_NUMBER.REGION.run.app/api/auth/callback
+#     to its Authorized redirect URIs (or your custom domain, if you set _FRONTEND_URL).
+
+substitutions:
+  _REGION: asia-south1
+  _REPO: advisor
+  _SQL_INSTANCE: advisor-db
+  _OUTPUT_BUCKET: ${PROJECT_ID}-advisor-outputs
+  _RUN_SA: advisor-run@${PROJECT_ID}.iam.gserviceaccount.com
+  _PROVIDER: gemini                    # default model; the web app can still switch per run
+  _OAUTH_CLIENT_ID: ''
+  _ALLOWED_DOMAINS: searce.com
+  _ADMIN_EMAILS: ''
+  _TAG: ${BUILD_ID}
+  # Cloud Run's deterministic URLs; set _FRONTEND_URL to a custom domain if you map one.
+  _BACKEND_URL: https://advisor-backend-${PROJECT_NUMBER}.${_REGION}.run.app
+  _FRONTEND_URL: https://advisor-frontend-${PROJECT_NUMBER}.${_REGION}.run.app
+  _IMAGES: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}
+
+options:
+  dynamicSubstitutions: true
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: build-backend
+    name: gcr.io/cloud-builders/docker
+    args: ['build', '-t', '${_IMAGES}/backend:${_TAG}', 'backend']
+    waitFor: ['-']
+
+  - id: build-frontend
+    name: gcr.io/cloud-builders/docker
+    args: ['build', '-t', '${_IMAGES}/frontend:${_TAG}', 'frontend']
+    waitFor: ['-']
+
+  - id: push-backend
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '${_IMAGES}/backend:${_TAG}']
+    waitFor: ['build-backend']
+
+  - id: push-frontend
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '${_IMAGES}/frontend:${_TAG}']
+    waitFor: ['build-frontend']
+
+  # Public ingress so the frontend's nginx can reach it; sign-in is enforced by the app.
+  # ^@^ makes '@' the list separator, since ADVISOR_ADMIN_EMAILS etc. contain commas.
+  - id: deploy-backend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - advisor-backend
+      - --image=${_IMAGES}/backend:${_TAG}
+      - --region=${_REGION}
+      - --service-account=${_RUN_SA}
+      - --allow-unauthenticated
+      - --memory=1Gi
+      - --timeout=900               # a full run streams for several minutes
+      - --add-cloudsql-instances=${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}
+      - --add-volume=name=outputs,type=cloud-storage,bucket=${_OUTPUT_BUCKET}
+      - --add-volume-mount=volume=outputs,mount-path=/app/outputs
+      - --set-secrets=ADVISOR_DATABASE_URL=advisor-database-url:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest,GOOGLE_API_KEY=google-api-key:latest,GOOGLE_OAUTH_CLIENT_SECRET=oauth-client-secret:latest
+      - >-
+        --set-env-vars=^@^ADVISOR_PROVIDER=${_PROVIDER}@GOOGLE_GENAI_USE_VERTEXAI=FALSE@ADVISOR_AUTH_MODE=google@GOOGLE_OAUTH_CLIENT_ID=${_OAUTH_CLIENT_ID}@GOOGLE_OAUTH_REDIRECT_URI=${_FRONTEND_URL}/api/auth/callback@ADVISOR_FRONTEND_URL=${_FRONTEND_URL}@ADVISOR_CORS_ORIGINS=${_FRONTEND_URL}@ADVISOR_ALLOWED_DOMAINS=${_ALLOWED_DOMAINS}@ADVISOR_ADMIN_EMAILS=${_ADMIN_EMAILS}@ADVISOR_LOG_FORMAT=json@ADVISOR_OUTPUT_DIR=/app/outputs
+    waitFor: ['push-backend']
+
+  - id: deploy-frontend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - advisor-frontend
+      - --image=${_IMAGES}/frontend:${_TAG}
+      - --region=${_REGION}
+      - --allow-unauthenticated
+      - --port=80
+      - --timeout=900
+      - --set-env-vars=BACKEND_URL=${_BACKEND_URL}
+    waitFor: ['push-frontend', 'deploy-backend']
+
+images:
+  - ${_IMAGES}/backend:${_TAG}
+  - ${_IMAGES}/frontend:${_TAG}

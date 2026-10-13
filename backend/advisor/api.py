@@ -4,6 +4,7 @@ Run (from backend/):  uvicorn advisor.api:app --port 8080 --reload
 The web app streams progress from POST /api/sessions/{id}/messages as NDJSON
 (one JSON object per line) and downloads exports from /api/runs/{id}/export/{fmt}.
 The architecture diagram is served at /api/runs/{id}/diagram.svg and .png.
+Edits to a report are saved at /api/runs/{id}/document (see documents.py); exports use the edit when one exists.
 Browsers may call it from the origins in ADVISOR_CORS_ORIGINS.
 """
 
@@ -25,7 +26,7 @@ from google.adk.sessions import DatabaseSessionService
 from google.genai import types
 from pydantic import BaseModel, Field
 
-from . import architecture, auth, db, diagram, report, storage, tracing
+from . import architecture, auth, db, diagram, doc_export, documents, report, storage, tracing
 from .agent import build_root_agent
 from .auth import User, current_user
 from .config import BACKEND_DIR, settings
@@ -57,7 +58,7 @@ app.add_middleware(  # added last so it also answers preflights before the check
     CORSMiddleware,
     allow_origins=list(settings.cors_origins),
     allow_credentials=True,  # the session cookie
-    allow_methods=["GET", "POST", "PATCH"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
     allow_headers=["Content-Type", auth.CLIENT_HEADER],
     expose_headers=["Content-Disposition"],  # lets the frontend read export file names
 )
@@ -101,6 +102,13 @@ class SessionRequest(BaseModel):
 
 class Message(BaseModel):
     text: str = Field(min_length=1, max_length=50_000)
+
+
+class DocumentBody(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    content: dict
+    base_version: int | None = None  # the version the editor loaded; None for the first save
+    manual: bool = False             # Save button / Ctrl+S: always kept in the version history
 
 
 def _agent_key(author: str) -> str | None:
@@ -221,10 +229,10 @@ async def send_message(session_id: str, body: Message, user: User = Depends(curr
 
 @app.post("/api/intake")
 async def intake(file: UploadFile, _: User = Depends(current_user)) -> dict:
-    """Extract requirement text from an uploaded .txt / .md / .pdf / .docx."""
+    """Extract requirement text from an uploaded .txt / .md / .pdf / .docx / .pptx."""
     suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in {".txt", ".md", ".pdf", ".docx"}:
-        raise HTTPException(400, "Upload a .txt, .md, .pdf or .docx file.")
+    if suffix not in {".txt", ".md", ".pdf", ".docx", ".pptx"}:
+        raise HTTPException(400, "Upload a .txt, .md, .pdf, .docx or .pptx file.")
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "File is larger than 10 MB.")
@@ -248,6 +256,7 @@ def runs(limit: int = 30, mine: bool = False, user: User = Depends(current_user)
     owners = storage.run_owners([r[0] for r in rows]) if owner is None else {r[0]: user.id for r in rows}
     emails = auth.emails_by_id({o for o in owners.values() if o})
     metrics = tracing.run_summaries([r[0] for r in rows])
+    edited = documents.titles([r[0] for r in rows])
     out = []
     for run_id, created, domains, agents, status, overall, rounds in rows:
         try:
@@ -256,7 +265,8 @@ def runs(limit: int = 30, mine: bool = False, user: User = Depends(current_user)
             markdown = None
         out.append({"run_id": run_id, "created_at": created, "domains": [d for d in domains.split(",") if d],
                     "agents": [a for a in agents.split(",") if a], "status": status, "overall": overall,
-                    "rounds": rounds, "title": title_of(markdown) if markdown else None,
+                    "rounds": rounds, "title": edited.get(run_id) or (title_of(markdown) if markdown else None),
+                    "edited": run_id in edited,
                     "has_report": markdown is not None, "owner": emails.get(owners.get(run_id) or ""),
                     **metrics.get(run_id, {"duration_ms": None, "tokens": None, "cost_usd": None})})
     return out
@@ -290,14 +300,85 @@ def run_report(run_id: str = Depends(check_run_access)) -> dict:
 
 @app.get("/api/runs/{run_id}/export/{fmt}")
 def export(fmt: str, run_id: str = Depends(check_run_access)) -> Response:
-    if fmt not in EXPORTERS:
-        raise HTTPException(400, f"Unknown format {fmt!r}; use one of {', '.join(EXPORTERS)}")
-    render, media_type = EXPORTERS[fmt]
-    markdown = _report_or_404(run_id)
-    content = render(markdown, architecture.load(run_id))
+    """The edited document when there is one, else the AI-generated report."""
+    if fmt not in doc_export.EXPORTERS:
+        raise HTTPException(400, f"Unknown format {fmt!r}; use one of {', '.join(doc_export.EXPORTERS)}")
+    edited = documents.get(run_id)
+    if edited:
+        render, media_type = doc_export.EXPORTERS[fmt]
+        try:
+            content = render(edited["content"], edited["title"], run_id, architecture.load(run_id))
+        except Exception as exc:  # noqa: BLE001 - tell the user instead of a bare 500
+            log.exception("Export of edited document %s to %s failed", run_id, fmt)
+            raise HTTPException(500, f"Could not export the edited document to {fmt.upper()}: {exc}") from exc
+    elif fmt == "md":
+        content, media_type = _report_or_404(run_id).encode("utf-8"), "text/markdown; charset=utf-8"
+    else:
+        render, media_type = EXPORTERS[fmt]
+        content = render(_report_or_404(run_id), architecture.load(run_id))
     filename = f"recommendation_{run_id}.{fmt}"
     return Response(content, media_type=media_type,
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+def check_run_edit(run_id: str = Depends(check_run_access), user: User = Depends(current_user)) -> str:
+    """The run's owner or an admin; reviewers can read but not change someone else's document."""
+    if user.role != "admin" and storage.run_owners([run_id]).get(run_id) != user.id:
+        raise HTTPException(403, "Only the person who ran this recommendation, or an admin, can edit it.")
+    return run_id
+
+
+def _can_edit(run_id: str, user: User) -> bool:
+    return user.role == "admin" or storage.run_owners([run_id]).get(run_id) == user.id
+
+
+def _document_out(doc: dict) -> dict:
+    by = doc.pop("updated_by", None)
+    return {**doc, "updated_by": auth.emails_by_id({by}).get(by) if by else None}
+
+
+@app.get("/api/runs/{run_id}/document")
+def get_document(run_id: str = Depends(check_run_access), user: User = Depends(current_user)) -> dict:
+    """The edited document, or document null when the run still shows its AI-generated report."""
+    _report_or_404(run_id)
+    doc = documents.get(run_id)
+    return {"run_id": run_id, "editable": _can_edit(run_id, user), "document": _document_out(doc) if doc else None}
+
+
+@app.put("/api/runs/{run_id}/document")
+def save_document(body: DocumentBody, run_id: str = Depends(check_run_edit), user: User = Depends(current_user)) -> dict:
+    _report_or_404(run_id)
+    try:
+        doc = documents.save(run_id, title=body.title, content=body.content, base_version=body.base_version,
+                             user_id=user.id, manual=body.manual)
+    except documents.DocumentError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except documents.Conflict as exc:
+        now = f" (now version {exc.current_version})" if exc.current_version else ""
+        raise HTTPException(409, f"This document was changed in another tab or by someone else{now}. "
+                                 "Reload it to see the latest version.") from exc
+    return _document_out(doc)
+
+
+@app.delete("/api/runs/{run_id}/document")
+def reset_document(run_id: str = Depends(check_run_edit), user: User = Depends(current_user)) -> dict:
+    """Back to the AI-generated report; the edit stays in the version history."""
+    return {"reset": documents.reset(run_id, user.id)}
+
+
+@app.get("/api/runs/{run_id}/document/versions")
+def document_versions(run_id: str = Depends(check_run_access)) -> list[dict]:
+    rows = documents.history(run_id)
+    emails = auth.emails_by_id({r["created_by"] for r in rows if r["created_by"]})
+    return [{**r, "created_by": emails.get(r["created_by"] or "")} for r in rows]
+
+
+@app.get("/api/runs/{run_id}/document/versions/{version_id}")
+def document_version(version_id: str, run_id: str = Depends(check_run_access)) -> dict:
+    snap = documents.snapshot(run_id, version_id)
+    if snap is None:
+        raise HTTPException(404, "No such version")
+    return snap
 
 
 @app.get("/api/runs/{run_id}/architecture")

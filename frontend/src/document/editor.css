@@ -1,0 +1,256 @@
+/* Document editor: title bar, toolbar, the page, sections and history panels, dialogs, print.
+   Uses the tokens from styles.css; the page itself stays white in both themes, like paper. */
+
+.contents { display: contents; }
+.layout.doc-wide { grid-template-columns: minmax(0, 1fr); max-width: 1600px; }
+.report.doc { overflow: visible; --sticky-top: 56px; }  /* visible: lets the toolbar stick under the top bar */
+.report.doc > .report-bar { border-radius: var(--radius) var(--radius) 0 0; }
+.doc-loading { display: flex; align-items: center; gap: 8px; margin: 0; padding: 28px 18px; }
+.doc-load-error { padding: 0 18px 10px; }
+.pill.edited { background: var(--accent-soft); color: var(--accent); }
+.run-meta .pill.edited { font-size: 11px; padding: 0 7px; margin-left: 2px; }
+.btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.link-btn { border: 0; background: none; color: var(--accent-2); cursor: pointer; padding: 0 0 0 4px; font-size: 13px; text-decoration: underline; }
+
+/* ------------------------------------------------------------ title bar */
+.doc-titlebar { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; padding: 12px 18px 10px; border-top: 1px solid var(--border); }
+.doc-title {
+  flex: 1 1 300px; min-width: 0; margin-left: -8px; padding: 4px 8px;
+  font-size: 19px; font-weight: 650; color: var(--heading);
+  border: 1px solid transparent; border-radius: 7px; background: transparent;
+}
+.doc-title:hover:not([readonly]) { border-color: var(--border); }
+.doc-title:focus { outline: none; border-color: var(--accent); background: var(--surface); }
+.doc-titlebar-right { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin-left: auto; }
+.doc-status { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.doc-status.ok { color: var(--ok); }
+.doc-status.warn { color: var(--warn); }
+.doc-status.bad { color: var(--danger); }
+.doc-words { font-size: 12.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.doc-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.doc-actions .btn { gap: 5px; }
+.export-menu { position: relative; }
+.export-list { width: 260px; }
+a.menu-item { text-decoration: none; }
+.doc-alert {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 18px; background: var(--danger-soft); color: var(--danger); font-size: 14px;
+}
+.doc-alert > span { flex: 1 1 260px; }
+
+/* -------------------------------------------------------------- toolbar */
+.doc-toolbar {
+  position: sticky; top: var(--sticky-top); z-index: 6;
+  padding: 5px 12px; background: var(--surface);
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.tb-row { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.tb-row + .tb-row { margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--border); }
+.tb-btn {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  min-width: 32px; height: 32px; padding: 0 6px; border: 1px solid transparent; border-radius: 6px;
+  background: transparent; color: var(--text); cursor: pointer; font-size: 15px; line-height: 1;
+}
+.tb-btn:hover:not(:disabled) { background: var(--surface-2); }
+.tb-btn.active { background: var(--accent-soft); color: var(--accent); }
+.tb-btn:disabled { opacity: 0.38; cursor: default; }
+.tb-btn:focus-visible, .tb-select:focus-visible, .tb-text:focus-visible, .swatch:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+.tb-btn.color { flex-direction: column; gap: 2px; }
+.tb-swatch-bar { display: block; width: 16px; height: 4px; border-radius: 1px; box-shadow: inset 0 0 0 1px var(--border); }
+.tb-sep { flex: none; width: 1px; height: 20px; margin: 0 5px; background: var(--border); }
+.tb-select {
+  flex: none; height: 32px; margin: 0 2px; padding: 0 4px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text);
+  font-size: 13.5px; cursor: pointer;
+}
+.tb-select.style { width: 118px; }
+.tb-select.font { width: 136px; }
+.tb-select.size { width: 64px; }
+.tb-select.spacing { width: 90px; }
+.tb-label { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-right: 6px; }
+.tb-text {
+  flex: none; margin: 1px; padding: 4px 9px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.tb-text:hover:not(:disabled) { background: var(--surface-2); }
+.tb-text:disabled { opacity: 0.45; cursor: default; }
+.tb-text.danger { color: var(--danger); }
+.tb-popover-wrap { position: relative; flex: none; }
+.tb-popover {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: 236px; padding: 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(16 24 40 / 0.18);
+}
+.swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; }
+.swatch { width: 100%; aspect-ratio: 1; padding: 0; border-radius: 50%; border: 1px solid rgb(0 0 0 / 0.18); cursor: pointer; }
+.swatch:hover { transform: scale(1.12); }
+.tb-popover-row { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.custom-color { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.custom-color input { width: 32px; height: 24px; padding: 0; border: 0; background: none; cursor: pointer; }
+
+/* ---------------------------------------------- the page on a grey desk */
+/* The workspace fills the window under the toolbar and scrolls on its own, so reading the
+   document never moves the main page, and the main page never moves the document. */
+.doc-workspace {
+  position: relative; display: flex; align-items: stretch; min-height: 420px;
+  height: calc(100vh - var(--sticky-top) - var(--toolbar-h, 46px));
+  background: var(--surface-2); border-radius: 0 0 var(--radius) var(--radius);
+}
+.doc-canvas { flex: 1; min-width: 0; padding: 28px 24px 56px; cursor: text; overflow-y: auto; overscroll-behavior: contain; }
+.doc-paper {
+  max-width: 816px; min-height: 900px; margin: 0 auto; padding: 64px 72px; cursor: auto;
+  background: #fff; color: #1f2328; color-scheme: light;
+  border: 1px solid #e2e2ee; border-radius: 3px;
+  box-shadow: 0 1px 3px rgb(0 14 82 / 0.08), 0 8px 28px rgb(0 14 82 / 0.07);
+}
+.print-title { display: none; }
+.doc-content {
+  outline: none; overflow-wrap: anywhere;
+  font: 15px/1.6 "Google Sans", "Segoe UI", Roboto, Arial, sans-serif;
+}
+.doc-content > :first-child { margin-top: 0; }
+.doc-content h1, .doc-content h2, .doc-content h3 { scroll-margin-top: 16px; line-height: 1.3; }
+.doc-content h1 { font-size: 21px; margin: 30px 0 10px; padding-bottom: 6px; color: #1f5fbf; border-bottom: 1px solid #d0d7de; }
+.doc-content h2 { font-size: 16.5px; margin: 22px 0 8px; color: #1f2a44; }
+.doc-content h3 { font-size: 14.5px; margin: 16px 0 6px; color: #1f2a44; }
+.doc-content p { margin: 0 0 10px; }
+.doc-content ul, .doc-content ol { margin: 0 0 10px; padding-left: 26px; }
+.doc-content li > p { margin: 2px 0; }
+.doc-content a { color: #0068d6; text-decoration: underline; }
+.doc-content blockquote { margin: 10px 0; padding: 6px 12px; border-left: 3px solid #d0d7de; background: #f6f8fa; color: #59636e; }
+.doc-content code { padding: 1px 4px; border-radius: 3px; background: #f0f0f5; font-family: var(--mono); font-size: 0.88em; }
+.doc-content pre { padding: 10px 12px; border-radius: 6px; background: #f6f8fa; overflow-x: auto; }
+.doc-content pre code { background: none; padding: 0; }
+.doc-content hr { margin: 18px 0; border: 0; border-top: 1px solid #d0d7de; }
+.doc-content mark { padding: 0 1px; border-radius: 2px; color: inherit; }
+.doc-content img { display: block; max-width: 100%; height: auto; margin: 8px 0 14px; border-radius: 4px; }
+.doc-content img.ProseMirror-selectednode, .doc-content hr.ProseMirror-selectednode { outline: 3px solid #3b2bf0; outline-offset: 2px; }
+.doc-content .tableWrapper { margin: 0 0 16px; overflow-x: auto; }
+.doc-content table { width: 100%; border-collapse: collapse; table-layout: auto; font-size: 13px; line-height: 1.45; }
+.doc-content th, .doc-content td {
+  position: relative; min-width: 56px; padding: 6px 9px; vertical-align: top; text-align: left;
+  border: 1px solid #d0d7de;
+}
+.doc-content th { background: #1f2a44; color: #fff; font-weight: 600; }
+.doc-content th a { color: #9fd0ff; }
+.doc-content tr:nth-child(even) td { background: #f3f6fb; }
+.doc-content th p, .doc-content td p { margin: 0; }
+.doc-content .selectedCell::after { content: ""; position: absolute; inset: 0; background: rgb(59 43 240 / 0.16); pointer-events: none; }
+.doc-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder); float: left; height: 0; color: #9aa0b4; pointer-events: none;
+}
+.doc-content ::selection { background: #cfd8ff; color: inherit; }
+
+/* ---------------------------------------------- sections and history */
+.doc-outline, .doc-history {
+  flex: none; overflow-y: auto; overscroll-behavior: contain;
+  padding: 16px 12px;
+}
+.doc-outline { width: 236px; }
+.doc-history { width: 290px; background: var(--surface); border-left: 1px solid var(--border); }
+.outline-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.outline-head h2 { margin: 0; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.outline-add { position: relative; margin-bottom: 10px; }
+.block-btn { width: 100%; justify-content: center; }
+.outline-menu {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 15; max-height: 330px; overflow-y: auto;
+  margin: 0; padding: 4px; list-style: none;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgb(16 24 40 / 0.18);
+}
+.outline-menu button { width: 100%; padding: 7px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--text); text-align: left; font-size: 13.5px; cursor: pointer; }
+.outline-menu button:hover, .outline-menu button:focus-visible { background: var(--accent-soft); color: var(--accent); outline: none; }
+.outline-list { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.outline-item { display: flex; align-items: center; border-radius: 6px; }
+.outline-item.level-2 { padding-left: 14px; }
+.outline-item:hover, .outline-item:focus-within { background: var(--surface); }
+.outline-item.active { box-shadow: inset 2px 0 var(--accent); }
+.outline-item.active .outline-link { color: var(--accent); font-weight: 600; }
+.outline-link {
+  flex: 1; min-width: 0; padding: 5px 8px; border: 0; background: transparent; color: var(--text);
+  text-align: left; font-size: 13.5px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.outline-item.level-2 .outline-link { font-size: 12.5px; color: var(--muted); }
+.outline-link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.outline-actions { display: none; padding-right: 2px; }
+.outline-item:hover .outline-actions, .outline-item:focus-within .outline-actions { display: flex; }
+@media (hover: none) { .outline-actions { display: flex; } }
+.outline-actions button { display: inline-flex; padding: 4px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; }
+.outline-actions button:hover { background: var(--surface-2); color: var(--text); }
+.outline-actions button.danger:hover { color: var(--danger); }
+.outline-rename { flex: 1; min-width: 0; padding: 4px 6px; border: 1px solid var(--accent); border-radius: 6px; background: var(--surface); font-size: 13.5px; }
+.outline-empty { margin: 4px 2px; }
+.version-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.version { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
+.version.current { border-color: var(--accent); background: var(--accent-soft); }
+.version-text { display: flex; flex-direction: column; min-width: 0; }
+.version-title { font-size: 13.5px; font-weight: 600; }
+.version-by { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* -------------------------------------------------------------- dialogs */
+.dialog {
+  width: min(460px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface); color: var(--text); box-shadow: 0 24px 60px rgb(0 14 82 / 0.25);
+}
+.dialog::backdrop { background: rgb(8 11 34 / 0.45); }
+.dialog-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px 4px; }
+.dialog-head h2 { margin: 0; font-size: 17px; }
+.dialog-body { display: flex; flex-direction: column; gap: 12px; padding: 10px 18px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 18px 16px; }
+.field { display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; font-weight: 600; }
+.field input[type="text"] { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); font-weight: 400; }
+.field input[type="text"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field input[type="file"] { font-size: 13px; font-weight: 400; }
+.field .muted { font-weight: 400; }
+.dialog-body .inline-error { margin: -6px 0 0; }
+.dialog-tabs { align-self: flex-start; }
+.dialog-preview { align-self: flex-start; max-width: 100%; max-height: 180px; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+
+/* -------------------------------------------------------------- smaller */
+/* Narrower screens: panels slide over the page instead of sitting beside it. */
+@media (max-width: 1100px) {
+  .doc-outline, .doc-history {
+    position: fixed; top: 0; bottom: 0; z-index: 40; width: min(300px, 86vw); max-height: none;
+    background: var(--surface); box-shadow: 0 0 40px rgb(0 14 82 / 0.25);
+  }
+  .doc-outline { left: 0; }
+  .doc-history { right: 0; }
+}
+@media (max-width: 900px) {
+  .expand-btn { display: none; }
+}
+@media (max-width: 760px) {
+  .doc-titlebar { padding: 10px 14px; }
+  .doc-title { flex-basis: 100%; font-size: 17px; }
+  .doc-titlebar-right { width: 100%; margin-left: 0; justify-content: space-between; }
+  .hide-sm { display: none; }
+  /* One scrolling row of tools, like a phone word processor; colour pickers open as a bottom sheet. */
+  .doc-toolbar { padding: 4px 6px; }
+  .tb-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .tb-popover { position: fixed; top: auto; bottom: 16px; left: 16px; right: 16px; width: auto; }
+  .doc-canvas { padding: 12px 8px 32px; }
+  .doc-paper { min-height: 0; padding: 28px 20px; }
+}
+@media (max-width: 560px) {
+  .report.doc { --sticky-top: 0px; }  /* the top bar does not stick on phones */
+  /* A scroll area inside a scrolling page is awkward on a phone: the page scrolls as one. */
+  .doc-workspace { height: auto; align-items: flex-start; }
+  .doc-canvas { overflow-y: visible; }
+}
+
+/* ------------------------------------------- printing: just the document */
+@media print {
+  @page { margin: 16mm; }
+  body { background: #fff; }
+  .topbar, .banner, .rail-slot, .history, .toasts, .no-print, .intro { display: none !important; }
+  .layout, .layout.doc-wide { display: block; max-width: none; padding: 0; }
+  .card.report.doc { border: 0; box-shadow: none; background: none; }
+  .doc-workspace { display: block; height: auto; min-height: 0; background: none; }
+  .doc-canvas { padding: 0; overflow: visible; }
+  .doc-paper { max-width: none; min-height: 0; padding: 0; border: 0; box-shadow: none; }
+  .print-title { display: block; margin: 0 0 14px; padding-bottom: 8px; font-size: 24px; color: #1f2a44; border-bottom: 2px solid #1f5fbf; }
+  .doc-content h1, .doc-content h2, .doc-content h3 { break-after: avoid; }
+  .doc-content tr, .doc-content img { break-inside: avoid; }
+  .doc-content th, .doc-content tr:nth-child(even) td, .doc-content mark { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

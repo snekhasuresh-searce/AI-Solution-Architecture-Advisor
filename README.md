@@ -119,6 +119,31 @@ price periods; thinking tokens bill as output). Models missing from it show
 "price n/a". Update it when prices change. `ADVISOR_MOCK_DELAY_MS=1500` makes the mock
 model slow enough to demo the timeline offline.
 
+## Editing a recommendation
+
+Every recommendation opens in a document editor (TipTap) instead of a read-only view:
+a title you can rename, a formatting toolbar (fonts, sizes, colours, highlight,
+headings, alignment, line spacing, lists, tables, links, images, dividers, undo/redo,
+clipboard), and a white page. **Sections** lists the Heading 1/2 outline: jump to,
+rename, move, delete, or add a section (including the standard requirement sections
+such as Functional Requirements and Acceptance Criteria).
+
+- **Saving:** autosaves after a pause in typing (and at least every 10 s); **Save** or
+  Ctrl+S saves now and keeps a version. Unsaved changes are also kept in the browser,
+  restored after a crash or closed tab, and the page warns before leaving.
+- **Storage:** the AI-generated Markdown is never changed. The first edit creates a row
+  in `documents` (editor JSON, title, version); `document_versions` holds the history
+  (every Save, autosaves at most every 10 minutes, the last 50 kept). Saves carry the
+  version they started from, so a stale tab gets a conflict (HTTP 409) instead of
+  overwriting newer edits; it can then load the latest or keep its own.
+- **Exports** (Word, PDF, Markdown) use the edited document when there is one, with the
+  same branded layout, and keep fonts, colours, highlights, alignment, numbered and
+  nested lists, merged table cells, links and pasted images. **Print** prints the page.
+- **Access:** the run's owner and admins can edit; reviewers can read and export.
+- **API:** `GET/PUT/DELETE /api/runs/{id}/document` (DELETE goes back to the AI
+  report, keeping the edit in the history), `GET /api/runs/{id}/document/versions[/{vid}]`,
+  and `GET /api/runs/{id}/export/md`.
+
 ## Run both with Docker
 
 ```bash
@@ -152,6 +177,8 @@ backend/advisor/
   agent.py              ADK entry point (root_agent)
   api.py                HTTP API for the web app (streams progress, exports)
   export.py             Recommendation Markdown -> DOCX / PDF
+  documents.py          Edited documents: save with version check, history, reset
+  doc_export.py         Edited document (editor JSON) -> DOCX / PDF / Markdown
   consistency.py        Cross-agent conflict check (e.g. two different hosts)
   orchestrator.py       Coordinator: analyze -> select -> parallel specialists -> review/rework -> report
   selector.py           Rule table: domain -> agents (explainable, deterministic)
@@ -169,7 +196,7 @@ backend/advisor/
   mock_llm.py           Canned responses for offline testing
   report.py             8-part recommendation package (Markdown)
   storage.py            Run log: Postgres (ADVISOR_DATABASE_URL) or SQLite
-  intake.py             .txt / .md / .pdf / .docx reader
+  intake.py             .txt / .md / .pdf / .docx / .pptx reader
 backend/scenarios/      Demo inputs (1-4 = one per requirement type, 5 = vague)
 backend/scripts/run.py  CLI runner
 backend/scripts/export.py     Export a saved run to DOCX / PDF
@@ -180,7 +207,9 @@ backend/outputs/        Generated reports, diagrams and the SQLite log (not comm
 frontend/src/
   api.ts                Typed API client (streams agent progress)
   state.ts              Run state: agent progress, log, report
-  components/           Composer, Pipeline, Activity, ReportView, RunHistory
+  components/           Composer, Pipeline, Activity, ReportView (the document editor),
+                        EditorToolbar, DocOutline, VersionHistory, RunHistory
+  document/             Editor extensions, Markdown import, editor styles
 ```
 
 ## How it maps to the requirements
