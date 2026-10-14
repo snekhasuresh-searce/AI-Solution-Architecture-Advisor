@@ -57,7 +57,9 @@ def test_normalize_cleans_model_output():
 def test_diagram_renders_all_formats():
     a = _arch()
     svg = diagram.to_svg(a)
-    assert svg.startswith("<svg") and "AI LAYER" in svg and "Vector store" in svg and ">A1<" in svg
+    assert svg.startswith("<svg") and "AI AGENT LAYER" in svg and "Vector store" in svg and ">A1<" in svg
+    for band in ("SECURITY BOUNDARY", "EXTERNAL SERVICES", "DATA LAYER", "EDGE, NETWORKING", "SECURITY &amp; IDENTITY"):
+        assert band in svg
     assert diagram.to_png(a).startswith(b"\x89PNG")
     d = diagram.to_drawing(a, 700, 500)
     assert d.width <= 700.5 and d.height <= 500.5
@@ -65,7 +67,7 @@ def test_diagram_renders_all_formats():
 
 def test_frontend_only_has_no_ai_layer():
     svg = diagram.to_svg(_arch("frontend"))
-    assert "AI LAYER" not in svg and "DATA LAYER" not in svg
+    assert "AI AGENT LAYER" not in svg and "DATA LAYER" not in svg
 
 
 def test_report_section_and_exports():

@@ -25,7 +25,8 @@
 #     roles for advisor-run@PROJECT_ID.iam.gserviceaccount.com:
 #       roles/secretmanager.secretAccessor, roles/cloudsql.client,
 #       roles/storage.objectAdmin on the outputs bucket
-#   Build service account (Cloud Build's, by default PROJECT_NUMBER-compute@developer.gserviceaccount.com):
+#   Build service account (Cloud Build's default; in se-ps1-appdev it is PROJECT_NUMBER@cloudbuild.gserviceaccount.com,
+#   newer projects use PROJECT_NUMBER-compute@developer.gserviceaccount.com):
 #     roles/run.admin, roles/artifactregistry.writer, roles/iam.serviceAccountUser on advisor-run
 #   OAuth client: add https://advisor-frontend-PROJECT_NUMBER.REGION.run.app/api/auth/callback
 #     to its Authorized redirect URIs (or your custom domain, if you set _FRONTEND_URL).

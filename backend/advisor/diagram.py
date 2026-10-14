@@ -4,16 +4,15 @@ One deterministic layout produces a list of drawing primitives; three small
 back-ends render them as SVG (web app), a reportlab Drawing (vector, PDF export)
 and PNG (DOCX export). Layout:
 
-    [ title ]
-    [ Users & stakeholders                    ]
-    +-- Cloud boundary ------------------------+  +- External -+
-    | Security |  infrastructure band          |  | systems    |
-    | (cross-  |  application band             |  | and        |
-    | cutting) |  API & services band          |  | integra-   |
-    |          |  AI band                      |  | tions      |
-    |          |  data band                    |  |            |
-    | Monitoring & operations band             |  |            |
-    +------------------------------------------+  +------------+
+                      [ Users & stakeholders              ]
+    +- External -+   +-- Cloud / security boundary ----------------------+
+    | third-party|   |  Edge, networking & compute band  |  Data layer   |
+    |            |   |  Frontend band                    |               |
+    | client     |   |  Backend band                     |  (stores,     |
+    | systems,   |   |  AI agent band                    |   stacked)    |
+    | APIs       |   |  Security band (full width)                       |
+    +------------+   |  Monitoring & operations band (full width)        |
+                     +---------------------------------------------------+
     [ legend ]
 
 Arrows are routed orthogonally through the gaps between bands ("gutters") and
@@ -30,36 +29,73 @@ from pathlib import Path
 
 from reportlab.pdfbase.pdfmetrics import stringWidth
 
-from .architecture import KIND_TITLES, LAYER_TITLES
-
 # ------------------------------------------------------------------ palette
-KIND_STYLE = {  # fill, stroke
-    "actor": ("#f1f5f9", "#475569"),
-    "client_system": ("#f3f4f6", "#6b7280"),
-    "proposed": ("#e8f0fe", "#1a56db"),
-    "third_party": ("#fff4e5", "#c2410c"),
-    "cloud_service": ("#e6f6f4", "#0f766e"),
-    "ai": ("#f3e8ff", "#7e22ce"),
-    "data_store": ("#e9f7ec", "#15803d"),
+STYLE = {  # style key -> (fill, stroke, legend title)
+    "actor": ("#f1f2f9", "#545879", "User / stakeholder"),
+    "ui": ("#efeaff", "#6a4fe0", "Frontend"),
+    "svc": ("#e8f0ff", "#2f6fe0", "Backend service"),
+    "agent": ("#f8eaff", "#a43fd6", "AI component"),
+    "data": ("#e6f7ee", "#1e9a5c", "Data store"),
+    "cloud": ("#e3f6f8", "#0b8c9c", "Managed cloud service"),
+    "ext": ("#ffffff", "#3d4166", "External / third-party"),
+    "client": ("#f3f4f6", "#6b7280", "Client system"),
 }
-INK, MUTED, BAND_FILL, BAND_LINE, CLOUD_LINE = "#0f172a", "#475569", "#f8fafc", "#cbd5e1", "#2563eb"
-FLOW_COLOR = {"request": "#334155", "ai": "#7e22ce"}
+INK, MUTED, BAND_FILL, BAND_LINE, BOUNDARY = "#15173a", "#565a82", "#fafbff", "#cdd0e6", "#5b2fd6"
+FLOW_COLOR = {"request": "#3a3e66", "ai": "#a43fd6"}
 
 # ------------------------------------------------------------------ geometry
 W, M = 1480, 24
 HEADER = 58
-SIDE_W, INT_W = 196, 220
-SIDE_GAP = 40          # security column -> center (holds the left routing lane)
-INT_GAP = 34           # cloud boundary -> integrations column (right routing lane)
-LANE_W = 30            # free strip at the right of the center bands (vertical routing lane)
+EXT_W, DATA_W = 210, 230
+EXT_GAP = 34           # external column -> boundary (holds the left routing lane)
+DATA_GAP = 40          # centre bands -> data column (holds the right routing lane)
+LANE_W = 30            # free strip at the right of the centre bands (vertical routing lane)
 BAND_HEAD, NODE_H, BAND_PAD = 24, 60, 12
 BAND_H = BAND_HEAD + NODE_H + BAND_PAD
 GUTTER = 42
 NODE_GAP = 14
-SIDE_NODE_H = 50
-CENTER_LAYERS = ["users", "infrastructure", "application", "api", "ai", "data", "operations"]
+SIDE_NODE_H = 56
+# Band name -> the architect layers it holds. The last two span the full boundary width.
+# Infrastructure (CDN, load balancer, compute) sits where traffic enters, between users and frontend.
+BANDS = [
+    ("users", ["users"]),
+    ("edge", ["infrastructure"]),
+    ("application", ["application"]),
+    ("api", ["api"]),
+    ("ai", ["ai"]),
+    ("security", ["security"]),
+    ("operations", ["operations"]),
+]
+BOTTOM_BANDS = {"security", "operations"}
+BAND_TITLES = {
+    "users": "USERS & STAKEHOLDERS",
+    "edge": "EDGE, NETWORKING & COMPUTE",
+    "application": "FRONTEND · USER INTERACTION",
+    "api": "BACKEND · APIS & SERVICES",
+    "ai": "AI AGENT LAYER",
+    "security": "SECURITY & IDENTITY",
+    "operations": "MONITORING & OPERATIONS",
+}
 
 FONT, FONT_BOLD = "Helvetica", "Helvetica-Bold"
+
+
+def style_of(node: dict) -> str:
+    """Colour by role: our components take their layer's colour; others take their kind's."""
+    kind, layer = node.get("kind"), node.get("layer")
+    if kind == "actor":
+        return "actor"
+    if kind == "data_store":
+        return "data"
+    if kind == "ai":
+        return "agent"
+    if kind == "cloud_service":
+        return "cloud"
+    if kind == "third_party":
+        return "ext"
+    if kind == "client_system":
+        return "client"
+    return {"application": "ui", "ai": "agent", "data": "data"}.get(layer, "svc")
 
 
 @dataclass
@@ -68,7 +104,7 @@ class Box:
     y: float
     w: float
     h: float
-    band: int | str  # center band index, or "security" / "integrations"
+    band: int | str  # centre band index, or "integrations" / "data" for the side columns
     order: int = 0
 
     @property
@@ -138,12 +174,12 @@ class Scene:
 
 
 def _draw_node(scene: Scene, node: dict, b: Box) -> None:
-    fill, stroke = KIND_STYLE.get(node["kind"], KIND_STYLE["proposed"])
+    fill, stroke, _ = STYLE[style_of(node)]
     dash = node.get("status") == "recommended"
     if node["kind"] == "data_store":
         scene.cylinder(b.x, b.y, b.w, b.h, fill, stroke, dash)
     else:
-        scene.rect(b.x, b.y, b.w, b.h, fill, stroke, 1.4, dash, 7)
+        scene.rect(b.x, b.y, b.w, b.h, fill, stroke, 1.4, dash, 8)
     left = b.x + 8
     if node["kind"] == "actor":
         scene.person(b.x + 18, b.cy, stroke)
@@ -168,15 +204,17 @@ def layout(arch: dict) -> Scene:
     by_layer: dict[str, list[dict]] = {}
     for n in nodes:
         by_layer.setdefault(n["layer"], []).append(n)
-    security, integrations = by_layer.get("security", []), by_layer.get("integrations", [])
+    integrations, data = by_layer.get("integrations", []), by_layer.get("data", [])
 
     # Horizontal extents ----------------------------------------------------
-    cloud_left = M
-    sec_left = cloud_left + 12
-    center_left = sec_left + SIDE_W + SIDE_GAP if security else cloud_left + 16
-    int_left = W - M - INT_W
-    cloud_right = int_left - INT_GAP if integrations else W - M
-    center_right = cloud_right - 12
+    ext_left = M
+    ext_right = ext_left + EXT_W
+    cloud_left = ext_right + EXT_GAP if integrations else M
+    cloud_right = W - M
+    data_right = cloud_right - 12
+    data_left = data_right - DATA_W
+    center_left = cloud_left + 16
+    center_right = data_left - DATA_GAP if data else cloud_right - 12
     nodes_right = center_right - LANE_W  # right strip stays free for the vertical lane
 
     # Header ----------------------------------------------------------------
@@ -185,26 +223,38 @@ def layout(arch: dict) -> Scene:
                11.5, False, MUTED)
 
     # Bands -----------------------------------------------------------------
-    bands = [layer for layer in CENTER_LAYERS if by_layer.get(layer)]
+    bands: list[str] = []
+    band_nodes: dict[str, list[dict]] = {}
+    for name, layers in BANDS:
+        items = [n for layer in layers for n in by_layer.get(layer, [])]
+        if items:
+            bands.append(name)
+            band_nodes[name] = items
+    data_needed = 30 + len(data) * (SIDE_NODE_H + 12) + 4
     band_box: dict[int, tuple[float, float]] = {}  # index -> (top, bottom)
     boxes: dict[str, Box] = {}
     y = M + HEADER
     cloud_top = cloud_first = None
-    for i, layer in enumerate(bands):
-        if layer != "users" and cloud_top is None:
+    side_bottom = None
+    for i, name in enumerate(bands):
+        if name != "users" and cloud_top is None:
             cloud_top = y - (14 if i else 0)
             y = cloud_top + 30
             cloud_first = y
+        if name in BOTTOM_BANDS and side_bottom is None:
+            # The data column sits beside the top bands; full-width bands start below it.
+            side_bottom = max(y - GUTTER, cloud_first + data_needed if data else 0)
+            y = max(y, side_bottom + GUTTER)
         top = y
-        if layer == "operations":
-            bx, bw = sec_left, center_right - sec_left
-            nl, nr = sec_left + 12, center_right - 12
+        if name in BOTTOM_BANDS:
+            bx, bw = center_left, data_right - center_left
+            nl, nr = center_left + 12, data_right - 12
         else:
             bx, bw = center_left, center_right - center_left
             nl, nr = center_left + 12, nodes_right
-        scene.rect(bx, top, bw, BAND_H, BAND_FILL, BAND_LINE, 1, False, 8)
-        scene.text(bx + 12, top + 17, LAYER_TITLES[layer].upper(), 9.5, True, MUTED)
-        items = by_layer[layer]
+        scene.rect(bx, top, bw, BAND_H, BAND_FILL, BAND_LINE, 1, False, 10)
+        scene.text(bx + 12, top + 17, BAND_TITLES[name], 9.5, True, MUTED)
+        items = band_nodes[name]
         n = len(items)
         nw = min(210, (nr - nl - NODE_GAP * (n - 1)) / n)
         span = n * nw + (n - 1) * NODE_GAP
@@ -217,52 +267,50 @@ def layout(arch: dict) -> Scene:
     if cloud_top is None:  # only users: still draw an (empty) boundary for context
         cloud_top = cloud_first = y
         last_band_bottom = y + 20
-    ops_present = "operations" in bands
-    side_bottom = band_box[bands.index("operations") - 1][1] if ops_present and len(bands) > 1 else last_band_bottom
-    side_bottom = max(side_bottom, cloud_first + 60)
+    if side_bottom is None:
+        side_bottom = max(last_band_bottom, cloud_first + data_needed)
 
     # Side columns ------------------------------------------------------------
-    def column(items, left, width, title, outside):
+    def column(items, left, width, title, outside, bottom):
         top = cloud_first
-        needed = 30 + len(items) * (SIDE_NODE_H + 10) + 4
-        bottom = max(side_bottom, top + needed)
         fill = "#ffffff" if outside else BAND_FILL
-        scene.rect(left, top, width, bottom - top, fill, "#94a3b8" if outside else BAND_LINE, 1, outside, 8)
-        scene.text(left + 12, top + 18, title.upper(), 9.5, True, MUTED)
+        scene.rect(left, top, width, bottom - top, fill, "#8d91b3" if outside else BAND_LINE, 1, outside, 10)
+        scene.text(left + 12, top + 18, title, 9.5, True, MUTED)
         for k, node in enumerate(items):
-            boxes[node["id"]] = Box(left + 10, top + 30 + k * (SIDE_NODE_H + 10), width - 20, SIDE_NODE_H,
+            boxes[node["id"]] = Box(left + 10, top + 30 + k * (SIDE_NODE_H + 12), width - 20, SIDE_NODE_H,
                                     node["layer"], k)
-        return bottom
 
-    col_bottom = last_band_bottom
-    if security:
-        col_bottom = max(col_bottom, column(security, sec_left, SIDE_W, "Security (cross-cutting)", False))
+    if data:
+        column(data, data_left, DATA_W, "DATA LAYER", False, side_bottom)
+    ext_bottom = last_band_bottom
     if integrations:
-        col_bottom = max(col_bottom, column(integrations, int_left, INT_W, "External integrations", True))
+        needed = cloud_first + 30 + len(integrations) * (SIDE_NODE_H + 12) + 4
+        ext_bottom = max(min(side_bottom, last_band_bottom), needed)
+        column(integrations, ext_left, EXT_W, "EXTERNAL SERVICES", True, ext_bottom)
 
-    cloud_bottom = max(last_band_bottom, col_bottom) + 14
-    # Cloud boundary, drawn first so everything sits on top of it.
-    cloud_label = f"Cloud: {arch.get('cloud_provider', 'To be confirmed')}  (proposed solution boundary)"
+    cloud_bottom = max(last_band_bottom, side_bottom) + 14
+    # Security boundary, drawn first so everything sits on top of it.
+    cloud_label = f"CLOUD: {arch.get('cloud_provider', 'To be confirmed').upper()}  ·  SECURITY BOUNDARY"
     scene.items.insert(0, ("rect", cloud_left, cloud_top, cloud_right - cloud_left, cloud_bottom - cloud_top,
-                           "#fbfdff", CLOUD_LINE, 1.4, True, 12))
-    scene.items.insert(1, ("text", cloud_left + 12, cloud_top + 19, cloud_label, 11, True, CLOUD_LINE, "start"))
+                           "#ffffff", BOUNDARY, 1.6, True, 14))
+    scene.items.insert(1, ("text", cloud_left + 14, cloud_top + 19, cloud_label, 10.5, True, BOUNDARY, "start"))
 
     for node in nodes:
         if node["id"] in boxes:
             _draw_node(scene, node, boxes[node["id"]])
 
     # Edges -------------------------------------------------------------------
-    _draw_edges(scene, arch, boxes, band_box, bands, center_right, sec_left + SIDE_W, int_left, cloud_bottom)
+    _draw_edges(scene, arch, boxes, band_box, bands, center_right, ext_right, data_left, cloud_bottom)
 
     # Legend ------------------------------------------------------------------
-    y = cloud_bottom + 26
+    y = max(cloud_bottom, ext_bottom) + 26
     x = M
-    used = [k for k in KIND_STYLE if any(n["kind"] == k for n in nodes)]
-    for kind in used:
-        fill, stroke = KIND_STYLE[kind]
+    used = [k for k in STYLE if any(style_of(n) == k for n in nodes)]
+    for key in used:
+        fill, stroke, title = STYLE[key]
         scene.rect(x, y - 10, 16, 12, fill, stroke, 1.2, False, 3)
-        scene.text(x + 22, y, KIND_TITLES[kind], 10.5, False, INK)
-        x += 34 + stringWidth(KIND_TITLES[kind], FONT, 10.5)
+        scene.text(x + 22, y, title, 10.5, False, INK)
+        x += 34 + stringWidth(title, FONT, 10.5)
     y += 22
     x = M
     scene.rect(x, y - 10, 16, 12, "#ffffff", MUTED, 1.2, True, 3)
@@ -277,7 +325,7 @@ def layout(arch: dict) -> Scene:
     return scene
 
 
-def _draw_edges(scene, arch, boxes, band_box, bands, center_right, sec_right, int_left, cloud_bottom) -> None:
+def _draw_edges(scene, arch, boxes, band_box, bands, center_right, ext_right, data_left, cloud_bottom) -> None:
     # Merge steps into one edge per node pair; a reply on the same pair becomes a two-headed arrow.
     edges: dict[frozenset, dict] = {}
     for flow in arch.get("flows", []):
@@ -349,15 +397,16 @@ def _draw_edges(scene, arch, boxes, band_box, bands, center_right, sec_right, in
             return pts if up is A else pts[::-1]
         if is_center(A) or is_center(B):
             c, s = (A, B) if is_center(A) else (B, A)
-            is_ops = bands[c.band] == "operations"
-            gy = c.y - 8 if is_ops else gutter_below(c.band)
-            exit_y = c.y if is_ops else c.y + c.h
-            cx = px(c, "top" if is_ops else "bottom")
-            if s.band == "integrations":
-                lx = int_left - 10 - track("int_lane", 5, 4)
+            # Full-width bottom bands sit below the side columns, so they leave from the top.
+            bottom_band = bands[c.band] in BOTTOM_BANDS
+            gy = c.y - 8 if bottom_band else gutter_below(c.band)
+            exit_y = c.y if bottom_band else c.y + c.h
+            cx = px(c, "top" if bottom_band else "bottom")
+            if s.band == "data":
+                lx = data_left - 10 - track("data_lane", 5, 5)
                 end = (s.x, s.cy)
             else:
-                lx = sec_right + 10 + track("sec_lane", 5, 5)
+                lx = ext_right + 10 + track("ext_lane", 5, 4)
                 end = (s.x + s.w, s.cy)
             pts = [(cx, exit_y), (cx, gy), (lx, gy), (lx, s.cy), end]
             return pts if c is A else pts[::-1]
