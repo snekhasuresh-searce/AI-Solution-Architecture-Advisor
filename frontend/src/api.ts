@@ -166,10 +166,16 @@ export interface User {
   name: string | null;
   picture: string | null;
   role: Role;
+  /** false: signs in with Google only (can add a password from the profile menu) */
+  has_password: boolean;
+  /** `picture` is a photo they uploaded (not the Google one) */
+  has_custom_picture: boolean;
 }
 
 export interface ManagedUser extends User {
   active: boolean;
+  /** signed up with a password and waiting for an admin to approve it */
+  pending: boolean;
   last_login_at: string | null;
 }
 
@@ -177,6 +183,8 @@ export interface AuthConfig {
   mode: "google" | "dev";
   allowed_domains: string[];
   google_configured: boolean;
+  password_enabled: boolean;
+  access_token_minutes: number;
 }
 
 // Backend address. Empty = same origin (the Vite dev proxy, or a reverse proxy
@@ -204,11 +212,32 @@ async function check(res: Response): Promise<Response> {
   throw new ApiError(detail || `Request failed (${res.status})`, res.status);
 }
 
-/** All API calls: send the session cookie, and the header the backend requires on writes. */
-function request(path: string, init: RequestInit = {}): Promise<Response> {
+function send(path: string, init: RequestInit): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set("X-Advisor-Client", "web");
   return fetch(apiUrl(path), { ...init, headers, credentials: "include" });
+}
+
+// The access token (a short-lived JWT cookie) is renewed with the refresh cookie. Parallel
+// requests that all find it expired share one refresh.
+let refreshing: Promise<boolean> | null = null;
+
+/** Renew the access token; false once the session has ended. */
+export function refreshSession(): Promise<boolean> {
+  refreshing ??= send("/api/auth/refresh", { method: "POST" })
+    .then((res) => res.ok, () => false)
+    .finally(() => { refreshing = null; });
+  return refreshing;
+}
+
+const NO_RETRY = /^\/api\/auth\/(refresh|password-login|signup|dev-login|logout|login|callback)\b/;
+
+/** All API calls: send the cookies and the header the backend requires on writes. A 401 renews
+ *  the access token once and retries (request bodies here are strings or FormData, so resendable). */
+export async function request(path: string, init: RequestInit = {}): Promise<Response> {
+  const res = await send(path, init);
+  if (res.status !== 401 || NO_RETRY.test(path) || !(await refreshSession())) return res;
+  return send(path, init);
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -230,13 +259,30 @@ export const authApi = {
   /** Full-page navigation to Google; comes back to `next` in this app. */
   googleLoginUrl: (next: string) => apiUrl(`/api/auth/login?next=${encodeURIComponent(next)}`),
   devLogin: (email: string, role?: Role) => sendJson<User>("/api/auth/dev-login", "POST", { email, role }),
+  passwordLogin: (email: string, password: string) =>
+    sendJson<User>("/api/auth/password-login", "POST", { email, password }),
+  /** pending: the account waits for an admin; otherwise (bootstrap admin) it is signed in. */
+  signup: (email: string, password: string, name?: string) =>
+    sendJson<{ pending: boolean; user?: User }>("/api/auth/signup", "POST", { email, password, name }),
+  changePassword: (newPassword: string, currentPassword?: string) =>
+    sendJson<{ ok: boolean }>("/api/auth/password", "POST",
+      { new_password: newPassword, current_password: currentPassword }),
   logout: () => sendJson<{ ok: boolean }>("/api/auth/logout", "POST"),
+  /** Upload a profile photo; the server crops it to a square and re-encodes it. */
+  async uploadPicture(file: File): Promise<User> {
+    const form = new FormData();
+    form.append("file", file);
+    return (await check(await request("/api/auth/me/picture", { method: "PUT", body: form }))).json() as Promise<User>;
+  },
+  removePicture: () => sendJson<User>("/api/auth/me/picture", "DELETE"),
 };
 
 export const adminApi = {
   users: () => getJson<ManagedUser[]>("/api/admin/users"),
   update: (id: string, change: { role?: Role; active?: boolean }) =>
     sendJson<ManagedUser>(`/api/admin/users/${id}`, "PATCH", change),
+  setPassword: (id: string, password: string) =>
+    sendJson<{ ok: boolean }>(`/api/admin/users/${id}/password`, "POST", { password }),
 };
 
 export const api = {

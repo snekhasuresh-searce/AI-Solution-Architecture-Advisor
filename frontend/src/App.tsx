@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { api, ApiError, authApi, type AdvisorEvent, type AuthConfig, type Health, type ModelsInfo, type ModelUsage, type RunSummary, type Scenario, type User } from "./api";
+import { api, ApiError, authApi, refreshSession, type AdvisorEvent, type AuthConfig, type Health, type ModelsInfo, type ModelUsage, type RunSummary, type Scenario, type User } from "./api";
 import { Activity } from "./components/Activity";
 import { AdminUsers } from "./components/AdminUsers";
 import { BrandLockup } from "./components/Brand";
@@ -88,6 +88,21 @@ export default function App() {
       setUser(null);
     });
   }, []);
+
+  // Keep the short-lived access token fresh while signed in, so links and images that cannot
+  // retry (diagrams, downloads) keep working; also after the laptop wakes up.
+  useEffect(() => {
+    if (!user) return;
+    const minutes = authConfig?.access_token_minutes ?? 15;
+    const renew = () => refreshSession().then((ok) => { if (!ok) signedOut(true); });
+    const timer = window.setInterval(renew, Math.max(minutes - 2, 1) * 60_000);
+    const onVisible = () => { if (document.visibilityState === "visible") renew(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [user, authConfig, signedOut]);
 
   useEffect(() => {
     if (!user) return;
@@ -284,7 +299,8 @@ export default function App() {
               <Icon name="plus" /> New requirement
             </button>
           )}
-          <UserMenu user={user} onSignOut={signOut} />
+          <UserMenu user={user} passwordEnabled={authConfig?.password_enabled ?? false} onSignOut={signOut}
+                    onUserChange={setUser} />
         </div>
       </header>
 
@@ -296,7 +312,7 @@ export default function App() {
       )}
 
       {view === "users" && user.role === "admin" ? (
-        <div className="layout single"><AdminUsers me={user} /></div>
+        <div className="layout single"><AdminUsers me={user} passwordEnabled={authConfig?.password_enabled ?? false} /></div>
       ) : view === "usage" && user.role !== "consultant" ? (
         <div className="layout single"><UsageView onOpenRun={openRunById} /></div>
       ) : (

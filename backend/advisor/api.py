@@ -64,6 +64,7 @@ app.add_middleware(  # added last so it also answers preflights before the check
 )
 app.include_router(auth.router)
 app.include_router(auth.admin_router)
+app.include_router(auth.users_router)
 
 if settings.auth_mode == "dev":
     log.warning("ADVISOR_AUTH_MODE=dev: anyone can sign in as any %s address. Never use this on a shared server.",

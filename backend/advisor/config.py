@@ -83,7 +83,14 @@ class Settings:
     )
     # Where the browser goes after signing in or out.
     frontend_url: str = os.getenv("ADVISOR_FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    # How long a sign-in lasts before signing in again (the refresh token's lifetime).
     session_ttl_hours: int = _int("ADVISOR_SESSION_TTL_HOURS", 12)
+    # Signs the JWT access tokens. Set a long random value on any shared server (and the same
+    # value on every instance); empty = a random key per process, so a restart refreshes tokens.
+    jwt_secret: str = os.getenv("ADVISOR_JWT_SECRET", "").strip()
+    access_token_minutes: int = _int("ADVISOR_ACCESS_TOKEN_MINUTES", 15)
+    # Email + password sign-in and signup (new accounts wait for an admin to approve them).
+    password_auth: bool = os.getenv("ADVISOR_PASSWORD_AUTH", "true").strip().lower() == "true"
     # Secure cookies need HTTPS; on by default whenever the frontend is served over HTTPS.
     cookie_secure: bool = os.getenv(
         "ADVISOR_COOKIE_SECURE", "true" if os.getenv("ADVISOR_FRONTEND_URL", "").startswith("https") else "false"
