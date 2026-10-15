@@ -1,29 +1,26 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { User } from "../api";
+import { authApi, type User } from "../api";
+import { Avatar } from "./Avatar";
+import { useToast } from "../toast";
 import { Icon } from "./Icon";
+import { PasswordDialog } from "./PasswordDialog";
+import { PhotoDialog } from "./PhotoDialog";
 
 interface Props {
   user: User;
+  /** Email + password sign-in is on: offer "Set password" / "Change password". */
+  passwordEnabled: boolean;
+  /** The account changed (photo, password): the new state from the server. */
+  onUserChange: (user: User) => void;
   onSignOut: () => void;
 }
 
-function initials(user: User): string {
-  const source = user.name || user.email;
-  return source.split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join("");
-}
-
-/** The Google profile photo, or the initials when there is none or it fails to load. */
-function Avatar({ user, large = false }: { user: User; large?: boolean }) {
-  const [failed, setFailed] = useState<string | null>(null);
-  const cls = `avatar${large ? " large" : ""}`;
-  return user.picture && failed !== user.picture
-    ? <img className={cls} src={user.picture} alt="" referrerPolicy="no-referrer" onError={() => setFailed(user.picture)} />
-    : <span className={cls} aria-hidden="true">{initials(user)}</span>;
-}
-
 /** Profile button that opens a menu with the account details and Sign out. */
-export function UserMenu({ user, onSignOut }: Props) {
+export function UserMenu({ user, passwordEnabled, onUserChange, onSignOut }: Props) {
   const [open, setOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const toast = useToast();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const firstItem = useRef<HTMLButtonElement>(null);
@@ -88,8 +85,17 @@ export function UserMenu({ user, onSignOut }: Props) {
             </div>
           </div>
           <div className="menu-separator" role="separator" />
+          <button ref={firstItem} type="button" role="menuitem" className="menu-item"
+                  onClick={() => { setOpen(false); setPhotoOpen(true); }}>
+            <Icon name="camera" size={16} /> {user.has_custom_picture ? "Change photo" : "Upload a photo"}
+          </button>
+          {passwordEnabled && (
+            <button type="button" role="menuitem" className="menu-item"
+                    onClick={() => { setOpen(false); setPasswordOpen(true); }}>
+              <Icon name="key" size={16} /> {user.has_password ? "Change password" : "Set a password"}
+            </button>
+          )}
           <button
-            ref={firstItem}
             type="button"
             role="menuitem"
             className="menu-item"
@@ -101,6 +107,32 @@ export function UserMenu({ user, onSignOut }: Props) {
             <Icon name="logout" size={16} /> Sign out
           </button>
         </div>
+      )}
+
+      {passwordOpen && (
+        <PasswordDialog
+          title={user.has_password ? "Change password" : "Set a password"}
+          description={user.has_password
+            ? "Your other signed-in browsers will be signed out."
+            : "Then you can also sign in with your email and this password, not only with Google."}
+          needsCurrent={user.has_password}
+          submitLabel={user.has_password ? "Change password" : "Set password"}
+          onSubmit={async (next, current) => {
+            await authApi.changePassword(next, current);
+            toast.success(user.has_password ? "Password changed" : "Password set",
+                          { message: "Other signed-in browsers have been signed out." });
+            authApi.me().then(onUserChange).catch(() => {});
+          }}
+          onClose={() => { setPasswordOpen(false); trigger.current?.focus(); }}
+        />
+      )}
+
+      {photoOpen && (
+        <PhotoDialog
+          user={user}
+          onSaved={(updated, message) => { onUserChange(updated); toast.success(message); }}
+          onClose={() => { setPhotoOpen(false); trigger.current?.focus(); }}
+        />
       )}
     </div>
   );

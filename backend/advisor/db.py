@@ -23,7 +23,7 @@ def _postgres_url(driver: str) -> str:
 
 
 def app_db_url() -> str:
-    """Synchronous URL for the app's tables (users, auth_sessions, ...)."""
+    """Synchronous URL for the app's tables (users, auth_refresh, ...)."""
     return _postgres_url("psycopg") if settings.database_url else f"sqlite:///{settings.db_path}"
 
 

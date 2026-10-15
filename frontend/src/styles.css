@@ -519,9 +519,26 @@ kbd {
 .login .login-descriptor { margin: -4px 0 4px; font-size: 15px; color: var(--muted); }
 .login .inline-error { justify-content: center; text-align: left; margin: 0; }
 .btn.google { justify-content: center; padding: 11px 16px; font-size: 15px; margin-top: 8px; text-decoration: none; color: var(--text); }
-.dev-login { display: flex; flex-direction: column; gap: 12px; text-align: left; margin-top: 8px; }
-.dev-login label { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; font-weight: 600; }
-.dev-login input, .dev-login select {
+.dev-login, .password-login { display: flex; flex-direction: column; gap: 12px; text-align: left; margin-top: 8px; }
+.dev-login label, .password-login label { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; font-weight: 600; }
+.password-login .btn { justify-content: center; }
+.password-login .field-hint { margin-top: -4px; }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.auth-tabs button {
+  border: 1px solid transparent; background: transparent; padding: 7px 10px; border-radius: 9px; cursor: pointer;
+  font-size: 13.5px; font-weight: 600; color: var(--muted);
+}
+.auth-tabs button:hover { color: var(--text); }
+.auth-tabs button.active { background: var(--surface-solid); color: var(--text); border-color: var(--border-strong); }
+:root[data-theme="dark"] .auth-tabs button.active { background: var(--accent-soft); color: #fff; border-color: rgb(187 51 253 / 0.4); }
+.auth-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.auth-divider { display: flex; align-items: center; gap: 10px; margin: 6px 0 -2px; font: 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--border-strong); }
+.auth-notice {
+  display: flex; gap: 8px; align-items: flex-start; font-size: 13px; padding: 9px 12px; border-radius: 10px;
+  background: var(--ok-soft); color: var(--ok); border: 1px solid var(--ok-line);
+}
+.dev-login input, .dev-login select, .password-login input {
   padding: 9px 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface-2); font-weight: 400;
 }
 .dev-login .btn { justify-content: center; }
@@ -771,3 +788,26 @@ strong.meter-danger { color: var(--danger); }
   .menu { width: min(260px, calc(100vw - 32px)); }
   .toasts { left: 16px; right: 16px; bottom: 16px; width: auto; }
 }
+
+/* ---------------------------------------------------- password dialog */
+.pw-dialog {
+  width: min(440px, calc(100vw - 32px)); padding: 0; border-radius: var(--radius); color: var(--text);
+  background: var(--overlay); border: 1px solid var(--border-strong); box-shadow: var(--overlay-shadow);
+}
+:root[data-theme="dark"] .pw-dialog { border-color: rgb(187 51 253 / 0.35); }
+.pw-dialog::backdrop { background: rgb(8 11 34 / 0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.pw-dialog-body { padding: 20px 22px 22px; margin: 0; }
+.pw-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pw-dialog-head h2 { margin: 0; font-size: 18px; color: var(--heading); }
+.pw-dialog-body > p { margin: 0; }
+.pw-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.pw-dialog-actions .btn { justify-content: center; }
+.photo-dialog { display: flex; flex-direction: column; gap: 12px; }
+.photo-preview { display: flex; justify-content: center; padding: 10px 0 2px; }
+.photo-preview .avatar { box-shadow: 0 0 0 3px var(--surface-solid), 0 0 0 4px var(--hover-line), 0 0 32px -6px rgb(99 23 238 / 0.55); object-fit: cover; }
+.photo-hint { text-align: center; margin: 0; }
+.photo-actions { flex-wrap: wrap; }
+.photo-actions .danger-text { color: var(--danger); margin-right: auto; }
+.photo-actions .danger-text:hover:not(:disabled) { color: var(--danger); text-decoration: underline; }
+.sign-in-tag { margin-left: 6px; font-size: 10px; padding: 0 6px; vertical-align: 1px; }
+.pending-notice { margin: 0 0 14px; color: var(--warn); background: var(--warn-soft); border-color: var(--warn-line); }

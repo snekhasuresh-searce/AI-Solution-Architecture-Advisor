@@ -5,7 +5,8 @@ pydantic>=2.6
 python-dotenv>=1.0
 
 # Sign-in and database sessions
-sqlalchemy>=2.0               # users / auth_sessions tables
+sqlalchemy>=2.0               # users / auth_refresh tables
+PyJWT>=2.8                    # signed access tokens (HS256)
 asyncpg>=0.30                 # ADK conversation sessions on Postgres
 aiosqlite>=0.20               # ... or on SQLite when no Postgres URL is set
 google-auth>=2.30             # verifies Google ID tokens
@@ -22,6 +23,7 @@ reportlab>=4.2          # PDF export
 fastapi>=0.115
 uvicorn>=0.30
 python-multipart>=0.0.9  # file uploads
+Pillow>=10.0             # profile photos: validate, crop and re-encode
 
 # Dev
 pytest>=8.0

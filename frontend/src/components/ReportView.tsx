@@ -1,7 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError, apiUrl, type DocJSON, type DocumentState, type ExportFormat } from "../api";
+import { api, ApiError, apiUrl, request, type DocJSON, type DocumentState, type ExportFormat } from "../api";
 import { editorExtensions, FALLBACK_TITLE, imageToDataUrl, reportToDocument, sanitize, slug } from "../document/content";
 import type { Report } from "../state";
 import { useToast } from "../toast";
@@ -53,7 +53,7 @@ function clearDraft(runId: string): void {
 }
 
 async function download(runId: string, format: ExportFormat, filename: string): Promise<void> {
-  const res = await fetch(api.exportUrl(runId, format), { credentials: "include" });
+  const res = await request(api.exportUrl(runId, format));  // renews an expired sign-in token
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new Error(body?.detail ?? `Export failed (${res.status})`);
